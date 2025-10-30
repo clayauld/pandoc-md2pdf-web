@@ -182,14 +182,10 @@
         for (const result of job.results) {
             const p = document.createElement('p');
             if (result.success) {
-                const b = document.createElement('b');
-                b.textContent = result.originalName;
-                p.appendChild(b);
-                p.append(' -> ');
                 const a = document.createElement('a');
                 a.href = `/download/${job.id}/${encodeURIComponent(result.name)}`;
-                a.textContent = result.name;
                 a.download = result.name;
+                a.innerHTML = `📄 ${result.name}`;
                 p.appendChild(a);
             } else {
                 p.textContent = `${result.originalName} -> Failed: ${result.error || 'Unknown error'}`;
