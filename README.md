@@ -81,40 +81,52 @@ docker compose version
 
 ## 🚀 Quick Start Guide
 
-### Method 1: Using Docker Compose (Recommended)
+### Method 1: One-Shot Install (Recommended)
 
-This is the easiest way to get started:
+This is the fastest and easiest way to get the application running. No need to clone the repository—just run this command in your terminal:
 
-1. **Clone or download this repository**
+```bash
+curl -sSL https://raw.githubusercontent.com/clayauld/pandoc-md2pdf-web/main/install.sh | bash
+```
+
+**What does this do?**
+- It downloads and runs the `install.sh` script.
+- The script creates a directory at `~/pandoc-md2pdf-web`.
+- It downloads the necessary `docker-compose.yml` and `.env` files into that directory.
+- It starts the application using the pre-built Docker image.
+
+After installation, the application will be running at **http://localhost:8080**.
+
+To stop the application, run:
+```bash
+cd ~/pandoc-md2pdf-web && docker compose down
+```
+
+### Method 2: For Developers (Manual Setup)
+
+If you want to modify the code, you'll need to clone the repository:
+
+1. **Clone the repository**
 ```bash
 git clone https://github.com/clayauld/pandoc-md2pdf-web.git
 cd pandoc-md2pdf-web
 ```
 
 2. **Start the application**
-```bash
-docker compose up --build
-```
+   - For a production-like environment:
+     ```bash
+     docker compose up --build
+     ```
+   - For development with hot-reloading:
+     ```bash
+     docker compose -f docker-compose.yml -f docker-compose.override.yml up --build
+     ```
 
 3. **Open your browser**
    - Navigate to: http://localhost:8080
-   - You should see the upload interface
 
 4. **Stop the application**
-   - Press `Ctrl+C` in the terminal
-   - Or run: `docker compose down`
-
-### Method 2: Using Pre-built Image
-
-Skip the build process and use the published Docker image:
-
-```bash
-docker run --rm -p 8080:8080 ghcr.io/clayauld/pandoc-md2pdf-web:latest
-```
-
-Then open http://localhost:8080 in your browser.
-
-### Method 3: For Developers (Hot Reload)
+   - Press `Ctrl+C` or run: `docker compose down`
 
 If you're modifying the code and want automatic reloading:
 
