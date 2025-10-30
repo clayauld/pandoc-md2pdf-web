@@ -329,7 +329,13 @@ app.get('/download-zip/:id', downloadLimiter, (req, res) => {
     });
 
     zip.on('error', (err) => {
-        throw err;
+        console.error('[zip] Error:', err);
+        try { typeof zip.abort === 'function' && zip.abort(); } catch (_) {}
+        if (!res.headersSent) {
+            return res.status(500).send('Error creating ZIP');
+        }
+        // If headers already sent, terminate the response stream
+        try { res.destroy(err); } catch (_) {}
     });
 
     res.setHeader('Content-Type', 'application/zip');
