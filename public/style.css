@@ -41,6 +41,64 @@ input[type="file"] {
 .file-label:hover {
   background: #1d4ed8;
 }
+
+.file-list {
+  margin-top: 20px;
+  border-top: 1px solid #4a5568;
+  padding-top: 10px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  color: #e6edf3;
+}
+
+.file-icon {
+  flex-shrink: 0;
+}
+
+.file-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+  text-align: left;
+  padding: 0 8px;
+  min-width: 0;
+}
+
+.file-remove {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 1.2em;
+  padding: 0;
+  flex-shrink: 0;
+  width: auto;
+}
+
+.file-remove:hover {
+  color: #ef4444;
+}
+
+.results a {
+  display: inline-block;
+  background: #2563eb;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-top: 5px;
+  transition: background-color 0.2s;
+}
+
+.results a:hover {
+  background: #1d4ed8;
+}
+
 .opt {
   display: block;
   margin: 20px 0;

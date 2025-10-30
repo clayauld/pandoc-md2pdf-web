@@ -10,11 +10,12 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "multer": "^2.0.2",
     "mime-types": "^2.1.35",
-    "nanoid": "^5.0.7"
+    "multer": "^2.0.2",
+    "nanoid": "^5.0.7",
+    "express-rate-limit": "^8.2.0"
   }
 }
-
-

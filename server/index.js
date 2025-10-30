@@ -6,9 +6,45 @@ const { execFile } = require('child_process');
 const multer = require('multer');
 const mime = require('mime-types');
 const { nanoid } = require('nanoid');
+const archiver = require('archiver');
+
+// Rate limiting for download endpoints
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for conversion endpoint: 5 requests per minute per IP
+const convertLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many conversion requests from this IP, please try again later.',
+});
+
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// In-memory history of recent conversions
+const history = [];
+
+function parseTtl(ttl) {
+  if (!ttl) return 3600 * 1000; // Default: 1 hour
+  const unit = ttl.slice(-1).toLowerCase();
+  const value = parseInt(ttl.slice(0, -1), 10);
+  if (isNaN(value)) return 3600 * 1000;
+
+  switch (unit) {
+    case 'm': return value * 60 * 1000;
+    case 'h': return value * 3600 * 1000;
+    case 'd': return value * 24 * 3600 * 1000;
+    case 'w': return value * 7 * 24 * 3600 * 1000;
+    default: return 3600 * 1000;
+  }
+}
+
+// Time to keep history and files, in milliseconds.
+const HISTORY_EXPIRATION_MS = parseTtl(process.env.HISTORY_TTL);
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -16,7 +52,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Upload handling
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB, max 10 files
   fileFilter: (req, file, cb) => {
     const allowed = ['text/markdown', 'text/plain', 'application/octet-stream'];
     if (allowed.includes(file.mimetype) || (file.originalname || '').toLowerCase().endsWith('.md')) {
@@ -26,14 +62,73 @@ const upload = multer({
   },
 });
 
+const MAX_FILE_NAME_LENGTH = 255;
+
 function sanitizeBaseName(name) {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  // Ensure name is a string, truncate to a reasonable length (e.g., 255)
+  name = typeof name === 'string' ? name : String(name);
+  if (name.length > 255) {
+    name = name.slice(0, 255);
+  }
+  // Replace any disallowed character with underscore without regex backtracking
+  let out = '';
+  for (let i = 0; i < name.length; i++) {
+    const ch = name[i];
+    const isAllowed =
+      (ch >= 'a' && ch <= 'z') ||
+      (ch >= 'A' && ch <= 'Z') ||
+      (ch >= '0' && ch <= '9') ||
+      ch === '.' || ch === '_' || ch === '-';
+    out += isAllowed ? ch : '_';
+  }
+  return out;
+}
+
+function stripTrailingDelimiters(name) {
+  name = typeof name === 'string' ? name : String(name);
+  // Remove trailing underscores, dots, or hyphens from a base filename
+  let end = name.length;
+  while (end > 0) {
+    const ch = name.charAt(end - 1);
+    if (ch === '_' || ch === '-' || ch === '.') {
+      end--;
+    } else {
+      break;
+    }
+  }
+  return name.slice(0, end);
+}
+function collapseUnderscores(name) {
+  // Ensure string input and cap effective length
+  name = typeof name === 'string' ? name : String(name);
+  if (!Number.isSafeInteger(name.length) || name.length > MAX_FILE_NAME_LENGTH) {
+    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  }
+  // Collapse multiple underscores into a single underscore without regex
+  let out = '';
+  let prevUnderscore = false;
+  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  for (let i = 0; i < max; i++) {
+    const ch = name[i];
+    if (ch === '_') {
+      if (!prevUnderscore) out += '_';
+      prevUnderscore = true;
+    } else {
+      out += ch;
+      prevUnderscore = false;
+    }
+  }
+  return out;
 }
 
 function runPandoc({ cwd, mdFileName, useWatermark }) {
   return new Promise((resolve, reject) => {
     const inputPath = path.join(cwd, mdFileName);
-    const base = mdFileName.replace(/\.md$/i, '');
+    let baseRaw = mdFileName;
+    if (typeof mdFileName === 'string' && mdFileName.toLowerCase().endsWith('.md')) {
+      baseRaw = mdFileName.slice(0, -3);
+    }
+    const base = collapseUnderscores(stripTrailingDelimiters(baseRaw)) || baseRaw;
     const outDir = path.join(cwd, 'pdf_output');
     const outFile = path.join(outDir, `${base}.pdf`);
 
@@ -66,12 +161,12 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
   });
 }
 
-app.post('/convert', upload.single('file'), async (req, res) => {
+app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => {
   const watermark = String(req.body?.watermark || '').toLowerCase() === 'true';
   const rawWatermarkText = String(req.body?.watermarkText || '');
   const watermarkText = (rawWatermarkText.trim() || 'DRAFT');
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'No files uploaded' });
   }
 
   const id = nanoid(10);
@@ -80,13 +175,7 @@ app.post('/convert', upload.single('file'), async (req, res) => {
   try {
     await fsp.mkdir(workDir, { recursive: true });
 
-    // Persist uploaded file
-    const original = sanitizeBaseName(req.file.originalname || 'document.md');
-    const mdName = original.toLowerCase().endsWith('.md') ? original : `${original}.md`;
-    const mdPath = path.join(workDir, mdName);
-    await fsp.writeFile(mdPath, req.file.buffer);
-
-    // Copy required assets
+    // Copy required assets once per batch
     const projectRoot = path.join(__dirname, '..');
     const assets = ['linebreaks.lua', 'watermark.tex'];
     await Promise.all(
@@ -97,7 +186,6 @@ app.post('/convert', upload.single('file'), async (req, res) => {
       })
     );
 
-    // If watermark is requested, generate a custom watermark.tex with provided text
     if (watermark) {
       // Copy vendored draftwatermark.sty into working dir if available
       try {
@@ -126,23 +214,141 @@ app.post('/convert', upload.single('file'), async (req, res) => {
       await fsp.writeFile(path.join(workDir, 'watermark.tex'), customWatermark, 'utf8');
     }
 
-    // Run conversion
-    const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, useWatermark: watermark });
+    const results = [];
+    for (const file of req.files) {
+      try {
+        const original = sanitizeBaseName(file.originalname || 'document.md');
+        const mdName = original.toLowerCase().endsWith('.md') ? original : `${original}.md`;
+        const mdPath = path.join(workDir, mdName);
+        await fsp.writeFile(mdPath, file.buffer);
 
-    // Stream back PDF
-    const filename = path.basename(pdfPath);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    const stream = fs.createReadStream(pdfPath);
-    stream.on('close', async () => {
-      // Best-effort cleanup
-      try { await fsp.rm(workDir, { recursive: true, force: true }); } catch (_) {}
+        const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, useWatermark: watermark });
+        results.push({
+            name: path.basename(pdfPath),
+            originalName: file.originalname,
+            success: true
+        });
+      } catch (err) {
+          results.push({
+              originalName: file.originalname,
+              success: false,
+              error: err.message
+          })
+      }
+    }
+
+    history.push({
+        id,
+        results,
+        watermark,
+        watermarkText: watermark ? watermarkText : undefined,
+        expiresAt: HISTORY_EXPIRATION_MS > 0 ? Date.now() + HISTORY_EXPIRATION_MS : undefined,
+        workDir,
     });
-    stream.pipe(res);
+    res.json({ id, results });
+
   } catch (err) {
+    // Best-effort cleanup on catastrophic failure
     try { await fsp.rm(workDir, { recursive: true, force: true }); } catch (_) {}
-    res.status(500).json({ error: 'Conversion failed', details: String(err && err.message || err) });
+    res.status(500).json({ error: 'Conversion process failed', details: String(err && err.message || err) });
   }
+});
+
+app.get('/history', (req, res) => {
+  const now = Date.now();
+  const filtered = history.filter(h => !h.expiresAt || h.expiresAt > now);
+  res.json(filtered.map(h => ({
+      id: h.id,
+      results: h.results,
+      watermark: h.watermark,
+      watermarkText: h.watermarkText,
+  })));
+});
+
+// Rate limiter for download endpoints: 20 requests per minute per IP
+const downloadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many download requests from this IP, please try again later.',
+});
+
+app.get('/download/:id/:filename', downloadLimiter, (req, res) => {
+  const { id, filename } = req.params;
+  // Sanitize to prevent path traversal
+  const saneId = sanitizeBaseName(id);
+  const saneFilename = sanitizeBaseName(filename);
+
+  if (saneId !== id || saneFilename !== filename) {
+    return res.status(400).send('Invalid request');
+  }
+
+  const workDir = path.join(__dirname, 'tmp', saneId);
+  const pdfPath = path.join(workDir, 'pdf_output', saneFilename);
+
+  // Check file exists before streaming
+  fs.access(pdfPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      return res.status(404).send('File not found or not readable');
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${saneFilename}"`);
+    fs.createReadStream(pdfPath).pipe(res);
+  });
+});
+
+app.get('/download-zip/:id', downloadLimiter, (req, res) => {
+    const { id } = req.params;
+    const saneId = sanitizeBaseName(id);
+
+    if (saneId !== id) {
+        return res.status(400).send('Invalid request');
+    }
+
+    const job = history.find(h => h.id === saneId);
+    if (!job) {
+        return res.status(404).send('Job not found');
+    }
+
+    const successfulFiles = job.results.filter(r => r.success);
+    if (successfulFiles.length === 0) {
+        return res.status(404).send('No successful conversions to download.');
+    }
+
+    const zip = archiver('zip', {
+        zlib: { level: 9 } // Sets the compression level.
+    });
+
+    zip.on('warning', (err) => {
+        if (err.code === 'ENOENT') {
+            console.warn('[zip] Warning:', err);
+        } else {
+            throw err;
+        }
+    });
+
+    zip.on('error', (err) => {
+        console.error('[zip] Error:', err);
+        try { typeof zip.abort === 'function' && zip.abort(); } catch (_) {}
+        if (!res.headersSent) {
+            return res.status(500).send('Error creating ZIP');
+        }
+        // If headers already sent, terminate the response stream
+        try { res.destroy(err); } catch (_) {}
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="conversion_${saneId}.zip"`);
+    zip.pipe(res);
+
+    const pdfOutDir = path.join(job.workDir, 'pdf_output');
+    for (const file of successfulFiles) {
+        const pdfPath = path.join(pdfOutDir, file.name);
+        zip.file(pdfPath, { name: file.name });
+    }
+
+    zip.finalize();
 });
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));
@@ -151,4 +357,32 @@ app.listen(PORT, () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
 
+// Cleanup interval
+if (HISTORY_EXPIRATION_MS > 0) {
+    setInterval(() => {
+        const now = Date.now();
+        const toKeep = [];
+        const toDelete = [];
+
+        for (const h of history) {
+            if (h.expiresAt && h.expiresAt <= now) {
+                toDelete.push(h);
+            } else {
+                toKeep.push(h);
+            }
+        }
+
+        if (toDelete.length > 0) {
+            console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
+            history.length = 0;
+            history.push(...toKeep);
+            // Also delete files from disk
+            for (const h of toDelete) {
+                fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
+                    console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
+                });
+            }
+        }
+    }, 60000); // Run every minute
+}
 

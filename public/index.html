@@ -11,12 +11,13 @@
       <h1>Pandoc Web Converter</h1>
       <form id="form" action="/convert" method="post" enctype="multipart/form-data">
         <div id="drop" class="drop">
-          <h4>Drag & drop a .md file here</h4>
+          <h4>Drag & drop .md files here</h4>
           <p>or</p>
           <label for="file" class="file-label">
-            Choose a file
+            Choose files
           </label>
-          <input id="file" name="file" type="file" accept=".md,text/markdown" />
+          <input id="file" name="files" type="file" accept=".md,text/markdown" multiple />
+          <div id="file-list" class="file-list"></div>
         </div>
         <label class="opt">
           <input type="checkbox" id="watermark" name="watermark" />
@@ -30,7 +31,9 @@
       </form>
 
       <div id="status" class="status"></div>
+      <div id="results" class="results"></div>
     </main>
+    <aside id="history" class="history"></aside>
     <script src="/app.js"></script>
   </body>
   </html>
