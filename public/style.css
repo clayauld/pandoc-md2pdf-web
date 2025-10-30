@@ -56,8 +56,7 @@ input[type="file"] {
 }
 
 .file-icon {
-  margin-right: 8px;
-  font-size: 1.2em;
+  flex-shrink: 0;
 }
 
 .file-name {
@@ -75,9 +74,10 @@ input[type="file"] {
   border: none;
   color: #9ca3af;
   cursor: pointer;
-  font-size: 1em;
+  font-size: 1.2em;
   padding: 0;
   flex-shrink: 0;
+  width: auto;
 }
 
 .file-remove:hover {
