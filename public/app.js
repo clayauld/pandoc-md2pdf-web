@@ -150,10 +150,16 @@
       }
 
       loadHistory();
+
+      // Clear the file list on success
+      selectedFiles = [];
+      renderFileList();
+
     } catch (err) {
       setStatus('Error: ' + (err && err.message || err));
     } finally {
-      enableSubmit(true);
+      // Re-enable submit button only if there are files left to submit
+      enableSubmit(selectedFiles.length > 0);
     }
   });
 
