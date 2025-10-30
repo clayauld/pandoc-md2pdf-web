@@ -98,17 +98,17 @@ function stripTrailingDelimiters(name) {
   }
   return name.slice(0, end);
 }
-  // Restrict to MAX_FILE_NAME_LENGTH characters to prevent loop bound injection
-  if (name.length > MAX_FILE_NAME_LENGTH) {
+function collapseUnderscores(name) {
+  // Ensure string input and cap effective length
+  name = typeof name === 'string' ? name : String(name);
+  if (!Number.isSafeInteger(name.length) || name.length > MAX_FILE_NAME_LENGTH) {
     name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
-
-function collapseUnderscores(name) {
-  name = typeof name === 'string' ? name : String(name);
   // Collapse multiple underscores into a single underscore without regex
   let out = '';
   let prevUnderscore = false;
-  for (let i = 0; i < name.length; i++) {
+  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  for (let i = 0; i < max; i++) {
     const ch = name[i];
     if (ch === '_') {
       if (!prevUnderscore) out += '_';
