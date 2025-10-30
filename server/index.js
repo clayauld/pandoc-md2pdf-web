@@ -62,11 +62,13 @@ const upload = multer({
   },
 });
 
+const MAX_FILE_NAME_LENGTH = 255;
+
 function sanitizeBaseName(name) {
   // Ensure name is a string, truncate to a reasonable length (e.g., 255)
   name = typeof name === 'string' ? name : String(name);
-  if (name.length > 255) {
-    name = name.slice(0, 255);
+  if (name.length > MAX_FILE_NAME_LENGTH) {
+    name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
@@ -96,6 +98,10 @@ function stripTrailingDelimiters(name) {
   }
   return name.slice(0, end);
 }
+  // Restrict to MAX_FILE_NAME_LENGTH characters to prevent loop bound injection
+  if (name.length > MAX_FILE_NAME_LENGTH) {
+    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  }
 
 function collapseUnderscores(name) {
   name = typeof name === 'string' ? name : String(name);
