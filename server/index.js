@@ -47,12 +47,21 @@ function loadHistory() {
   }
 }
 
+let saveChain = Promise.resolve();
+
 async function saveHistory() {
-  try {
-    await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error saving history:', err);
-  }
+  // Wait for the previous save to complete (or fail).
+  // The .catch() prevents an unhandled rejection from stopping the process if the previous save failed.
+  await saveChain.catch(() => {});
+
+  // Now, perform the new save.
+  const newSave = fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
+
+  // The next call to saveHistory will wait for this new save operation.
+  saveChain = newSave;
+
+  // Return the promise so the caller can await it and handle success or failure.
+  return newSave;
 }
 
 loadHistory();
@@ -390,30 +399,34 @@ app.listen(PORT, () => {
 
 // Cleanup interval
 if (HISTORY_EXPIRATION_MS > 0) {
-    setInterval(() => {
-        const now = Date.now();
-        const toKeep = [];
-        const toDelete = [];
+    setInterval(async () => {
+        try {
+            const now = Date.now();
+            const toKeep = [];
+            const toDelete = [];
 
-        for (const h of history) {
-            if (h.expiresAt && h.expiresAt <= now) {
-                toDelete.push(h);
-            } else {
-                toKeep.push(h);
+            for (const h of history) {
+                if (h.expiresAt && h.expiresAt <= now) {
+                    toDelete.push(h);
+                } else {
+                    toKeep.push(h);
+                }
             }
-        }
 
-        if (toDelete.length > 0) {
-            console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
-            history.length = 0;
-            history.push(...toKeep);
-            await saveHistory();
-            // Also delete files from disk
-            for (const h of toDelete) {
-                fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
-                    console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
-                });
+            if (toDelete.length > 0) {
+                console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
+                history.length = 0;
+                history.push(...toKeep);
+                await saveHistory();
+                // Also delete files from disk
+                for (const h of toDelete) {
+                    fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
+                        console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
+                    });
+                }
             }
+        } catch (err) {
+            console.error('[cleanup] Cleanup job failed:', err);
         }
     }, 60000); // Run every minute
 }
