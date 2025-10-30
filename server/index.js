@@ -11,6 +11,15 @@ const archiver = require('archiver');
 // Rate limiting for download endpoints
 const rateLimit = require('express-rate-limit');
 
+// Rate limiter for conversion endpoint: 5 requests per minute per IP
+const convertLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many conversion requests from this IP, please try again later.',
+});
+
 require('dotenv').config();
 
 const app = express();
@@ -103,7 +112,7 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
   });
 }
 
-app.post('/convert', upload.array('files'), async (req, res) => {
+app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => {
   const watermark = String(req.body?.watermark || '').toLowerCase() === 'true';
   const rawWatermarkText = String(req.body?.watermarkText || '');
   const watermarkText = (rawWatermarkText.trim() || 'DRAFT');
