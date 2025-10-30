@@ -1,0 +1,15 @@
+services:
+  web:
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./public:/app/public:ro
+      - ./server:/app/server
+      # Keep container-installed deps even when mounting the source directory
+      - /app/server/node_modules
+      - ./linebreaks.lua:/app/linebreaks.lua:ro
+      - ./tables.lua:/app/tables.lua:ro
+      - ./watermark.tex:/app/watermark.tex:ro
+      - ./convert_to_pdf.sh:/app/convert_to_pdf.sh:ro
+
+

@@ -1,0 +1,24 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Logs
+*.log
+logs/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Temp and build
+server/tmp/
+pdf_output/
+completed/pdf_output/
+
+# Docker
+**/.env
+**/.env.local

@@ -1,0 +1,13 @@
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 0; background: #0b1220; color: #e6edf3; }
+main { max-width: 720px; margin: 40px auto; padding: 0 16px; }
+h1 { font-size: 24px; margin-bottom: 16px; }
+.drop { border: 2px dashed #334155; border-radius: 12px; padding: 24px; text-align: center; background: #111827; }
+.drop.dragover { border-color: #60a5fa; background: #0f172a; }
+input[type="file"] { display: inline-block; margin-top: 8px; }
+.opt { display: block; margin: 16px 0; }
+button { background: #2563eb; color: white; border: 0; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+button[disabled] { background: #1f2937; cursor: not-allowed; }
+.status { margin-top: 16px; min-height: 24px; color: #93c5fd; }
+
+
