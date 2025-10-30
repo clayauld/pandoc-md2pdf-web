@@ -83,6 +83,7 @@ function sanitizeBaseName(name) {
 }
 
 function stripTrailingDelimiters(name) {
+  name = typeof name === 'string' ? name : String(name);
   // Remove trailing underscores, dots, or hyphens from a base filename
   let end = name.length;
   while (end > 0) {
@@ -97,6 +98,7 @@ function stripTrailingDelimiters(name) {
 }
 
 function collapseUnderscores(name) {
+  name = typeof name === 'string' ? name : String(name);
   // Collapse multiple underscores into a single underscore without regex
   let out = '';
   let prevUnderscore = false;
