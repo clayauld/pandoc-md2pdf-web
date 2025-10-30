@@ -40,11 +40,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=sha
-            # Also tag default branch builds as "latest"
+            # Default branch: latest + sha
             type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,enable={{is_default_branch}}
+            # Release tags: only vX.Y.Z (no vX or vX.Y)
+            type=semver,pattern=v{{version}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
