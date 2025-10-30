@@ -63,22 +63,58 @@ const upload = multer({
 });
 
 function sanitizeBaseName(name) {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  // Replace any disallowed character with underscore without regex backtracking
+  let out = '';
+  for (let i = 0; i < name.length; i++) {
+    const ch = name[i];
+    const isAllowed =
+      (ch >= 'a' && ch <= 'z') ||
+      (ch >= 'A' && ch <= 'Z') ||
+      (ch >= '0' && ch <= '9') ||
+      ch === '.' || ch === '_' || ch === '-';
+    out += isAllowed ? ch : '_';
+  }
+  return out;
 }
 
 function stripTrailingDelimiters(name) {
   // Remove trailing underscores, dots, or hyphens from a base filename
-  return name.replace(/[_\-.]+$/, '');
+  let end = name.length;
+  while (end > 0) {
+    const ch = name.charAt(end - 1);
+    if (ch === '_' || ch === '-' || ch === '.') {
+      end--;
+    } else {
+      break;
+    }
+  }
+  return name.slice(0, end);
 }
 
 function collapseUnderscores(name) {
-  return name.replace(/_+/g, '_');
+  // Collapse multiple underscores into a single underscore without regex
+  let out = '';
+  let prevUnderscore = false;
+  for (let i = 0; i < name.length; i++) {
+    const ch = name[i];
+    if (ch === '_') {
+      if (!prevUnderscore) out += '_';
+      prevUnderscore = true;
+    } else {
+      out += ch;
+      prevUnderscore = false;
+    }
+  }
+  return out;
 }
 
 function runPandoc({ cwd, mdFileName, useWatermark }) {
   return new Promise((resolve, reject) => {
     const inputPath = path.join(cwd, mdFileName);
-    const baseRaw = mdFileName.replace(/\.md$/i, '');
+    let baseRaw = mdFileName;
+    if (typeof mdFileName === 'string' && mdFileName.toLowerCase().endsWith('.md')) {
+      baseRaw = mdFileName.slice(0, -3);
+    }
     const base = collapseUnderscores(stripTrailingDelimiters(baseRaw)) || baseRaw;
     const outDir = path.join(cwd, 'pdf_output');
     const outFile = path.join(outDir, `${base}.pdf`);
