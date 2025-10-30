@@ -8,14 +8,30 @@ const mime = require('mime-types');
 const { nanoid } = require('nanoid');
 const archiver = require('archiver');
 
+require('dotenv').config();
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 // In-memory history of recent conversions
 const history = [];
+
+function parseTtl(ttl) {
+  if (!ttl) return 3600 * 1000; // Default: 1 hour
+  const unit = ttl.slice(-1).toLowerCase();
+  const value = parseInt(ttl.slice(0, -1), 10);
+  if (isNaN(value)) return 3600 * 1000;
+
+  switch (unit) {
+    case 'h': return value * 3600 * 1000;
+    case 'd': return value * 24 * 3600 * 1000;
+    case 'w': return value * 7 * 24 * 3600 * 1000;
+    default: return 3600 * 1000;
+  }
+}
+
 // Time to keep history and files, in milliseconds.
-// Default to 1 hour. 0 = keep forever.
-const HISTORY_EXPIRATION_MS = (parseInt(process.env.HISTORY_EXPIRATION_S, 10) || 3600) * 1000;
+const HISTORY_EXPIRATION_MS = parseTtl(process.env.HISTORY_TTL);
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));

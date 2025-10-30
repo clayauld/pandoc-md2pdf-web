@@ -1,11 +1,10 @@
 services:
   web:
-    image: ghcr.io/clayauld/pandoc-md2pdf-web:latest
-    platform: linux/amd64
+    build: .
     ports:
       - "8080:8080"
-    environment:
-      - NODE_ENV=production
+    env_file:
+      - server/.env
     restart: unless-stopped
 
 
