@@ -41,6 +41,31 @@ input[type="file"] {
 .file-label:hover {
   background: #1d4ed8;
 }
+
+.file-list {
+  margin-top: 20px;
+  border-top: 1px solid #4a5568;
+  padding-top: 10px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  color: #e6edf3;
+}
+
+.file-icon {
+  margin-right: 8px;
+  font-size: 1.2em;
+}
+
+.file-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .opt {
   display: block;
   margin: 20px 0;

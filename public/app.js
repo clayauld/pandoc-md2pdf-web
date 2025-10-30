@@ -3,6 +3,7 @@
   const fileInput = document.getElementById('file');
   const submit = document.getElementById('submit');
   const drop = document.getElementById('drop');
+  const fileList = document.getElementById('file-list');
   const status = document.getElementById('status');
   const results = document.getElementById('results');
   const history = document.getElementById('history');
@@ -13,7 +14,37 @@
   function enableSubmit(enable) { submit.disabled = !enable; }
   function clearResults() { results.innerHTML = ''; }
 
-  fileInput.addEventListener('change', () => enableSubmit(fileInput.files.length > 0));
+  function renderFileList() {
+    fileList.innerHTML = '';
+    const files = fileInput.files;
+    if (files.length === 0) return;
+
+    const title = document.createElement('h4');
+    title.textContent = 'Selected files';
+    fileList.appendChild(title);
+
+    for (const file of files) {
+      const fileDiv = document.createElement('div');
+      fileDiv.className = 'file-item';
+
+      const icon = document.createElement('span');
+      icon.className = 'file-icon';
+      icon.textContent = '📄'; // Basic file icon
+
+      const name = document.createElement('span');
+      name.className = 'file-name';
+      name.textContent = file.name;
+
+      fileDiv.appendChild(icon);
+      fileDiv.appendChild(name);
+      fileList.appendChild(fileDiv);
+    }
+  }
+
+  fileInput.addEventListener('change', () => {
+    enableSubmit(fileInput.files.length > 0);
+    renderFileList();
+  });
 
   ;['dragenter', 'dragover'].forEach((evt) => drop.addEventListener(evt, (e) => {
     e.preventDefault(); e.stopPropagation(); drop.classList.add('dragover');
@@ -25,6 +56,7 @@
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
       fileInput.files = e.dataTransfer.files;
       enableSubmit(true);
+      renderFileList();
     }
   });
 
