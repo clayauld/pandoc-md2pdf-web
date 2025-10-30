@@ -6,9 +6,16 @@ const { execFile } = require('child_process');
 const multer = require('multer');
 const mime = require('mime-types');
 const { nanoid } = require('nanoid');
+const archiver = require('archiver');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// In-memory history of recent conversions
+const history = [];
+// Time to keep history and files, in milliseconds.
+// Default to 1 hour. 0 = keep forever.
+const HISTORY_EXPIRATION_MS = (parseInt(process.env.HISTORY_EXPIRATION_S, 10) || 3600) * 1000;
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -16,7 +23,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Upload handling
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB, max 10 files
   fileFilter: (req, file, cb) => {
     const allowed = ['text/markdown', 'text/plain', 'application/octet-stream'];
     if (allowed.includes(file.mimetype) || (file.originalname || '').toLowerCase().endsWith('.md')) {
@@ -66,12 +73,12 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
   });
 }
 
-app.post('/convert', upload.single('file'), async (req, res) => {
+app.post('/convert', upload.array('files'), async (req, res) => {
   const watermark = String(req.body?.watermark || '').toLowerCase() === 'true';
   const rawWatermarkText = String(req.body?.watermarkText || '');
   const watermarkText = (rawWatermarkText.trim() || 'DRAFT');
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'No files uploaded' });
   }
 
   const id = nanoid(10);
@@ -80,13 +87,7 @@ app.post('/convert', upload.single('file'), async (req, res) => {
   try {
     await fsp.mkdir(workDir, { recursive: true });
 
-    // Persist uploaded file
-    const original = sanitizeBaseName(req.file.originalname || 'document.md');
-    const mdName = original.toLowerCase().endsWith('.md') ? original : `${original}.md`;
-    const mdPath = path.join(workDir, mdName);
-    await fsp.writeFile(mdPath, req.file.buffer);
-
-    // Copy required assets
+    // Copy required assets once per batch
     const projectRoot = path.join(__dirname, '..');
     const assets = ['linebreaks.lua', 'watermark.tex'];
     await Promise.all(
@@ -97,7 +98,6 @@ app.post('/convert', upload.single('file'), async (req, res) => {
       })
     );
 
-    // If watermark is requested, generate a custom watermark.tex with provided text
     if (watermark) {
       // Copy vendored draftwatermark.sty into working dir if available
       try {
@@ -126,23 +126,126 @@ app.post('/convert', upload.single('file'), async (req, res) => {
       await fsp.writeFile(path.join(workDir, 'watermark.tex'), customWatermark, 'utf8');
     }
 
-    // Run conversion
-    const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, useWatermark: watermark });
+    const results = [];
+    for (const file of req.files) {
+      try {
+        const original = sanitizeBaseName(file.originalname || 'document.md');
+        const mdName = original.toLowerCase().endsWith('.md') ? original : `${original}.md`;
+        const mdPath = path.join(workDir, mdName);
+        await fsp.writeFile(mdPath, file.buffer);
 
-    // Stream back PDF
-    const filename = path.basename(pdfPath);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    const stream = fs.createReadStream(pdfPath);
-    stream.on('close', async () => {
-      // Best-effort cleanup
-      try { await fsp.rm(workDir, { recursive: true, force: true }); } catch (_) {}
+        const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, useWatermark: watermark });
+        results.push({
+            name: path.basename(pdfPath),
+            originalName: file.originalname,
+            success: true
+        });
+      } catch (err) {
+          results.push({
+              originalName: file.originalname,
+              success: false,
+              error: err.message
+          })
+      }
+    }
+
+    history.push({
+        id,
+        results,
+        watermark,
+        watermarkText: watermark ? watermarkText : undefined,
+        expiresAt: HISTORY_EXPIRATION_MS > 0 ? Date.now() + HISTORY_EXPIRATION_MS : undefined,
+        workDir,
     });
-    stream.pipe(res);
+    res.json({ id, results });
+
   } catch (err) {
+    // Best-effort cleanup on catastrophic failure
     try { await fsp.rm(workDir, { recursive: true, force: true }); } catch (_) {}
-    res.status(500).json({ error: 'Conversion failed', details: String(err && err.message || err) });
+    res.status(500).json({ error: 'Conversion process failed', details: String(err && err.message || err) });
   }
+});
+
+app.get('/history', (req, res) => {
+  const now = Date.now();
+  const filtered = history.filter(h => !h.expiresAt || h.expiresAt > now);
+  res.json(filtered.map(h => ({
+      id: h.id,
+      results: h.results,
+      watermark: h.watermark,
+      watermarkText: h.watermarkText,
+  })));
+});
+
+app.get('/download/:id/:filename', (req, res) => {
+  const { id, filename } = req.params;
+  // Sanitize to prevent path traversal
+  const saneId = sanitizeBaseName(id);
+  const saneFilename = sanitizeBaseName(filename);
+
+  if (saneId !== id || saneFilename !== filename) {
+    return res.status(400).send('Invalid request');
+  }
+
+  const workDir = path.join(__dirname, 'tmp', saneId);
+  const pdfPath = path.join(workDir, 'pdf_output', saneFilename);
+
+  // Check file exists before streaming
+  fs.access(pdfPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      return res.status(404).send('File not found or not readable');
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${saneFilename}"`);
+    fs.createReadStream(pdfPath).pipe(res);
+  });
+});
+
+app.get('/download-zip/:id', (req, res) => {
+    const { id } = req.params;
+    const saneId = sanitizeBaseName(id);
+
+    if (saneId !== id) {
+        return res.status(400).send('Invalid request');
+    }
+
+    const job = history.find(h => h.id === saneId);
+    if (!job) {
+        return res.status(404).send('Job not found');
+    }
+
+    const successfulFiles = job.results.filter(r => r.success);
+    if (successfulFiles.length === 0) {
+        return res.status(404).send('No successful conversions to download.');
+    }
+
+    const zip = archiver('zip', {
+        zlib: { level: 9 } // Sets the compression level.
+    });
+
+    zip.on('warning', (err) => {
+        if (err.code === 'ENOENT') {
+            console.warn('[zip] Warning:', err);
+        } else {
+            throw err;
+        }
+    });
+
+    zip.on('error', (err) => {
+        throw err;
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="conversion_${saneId}.zip"`);
+    zip.pipe(res);
+
+    const pdfOutDir = path.join(job.workDir, 'pdf_output');
+    for (const file of successfulFiles) {
+        const pdfPath = path.join(pdfOutDir, file.name);
+        zip.file(pdfPath, { name: file.name });
+    }
+
+    zip.finalize();
 });
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));
@@ -151,4 +254,32 @@ app.listen(PORT, () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
 
+// Cleanup interval
+if (HISTORY_EXPIRATION_MS > 0) {
+    setInterval(() => {
+        const now = Date.now();
+        const toKeep = [];
+        const toDelete = [];
+
+        for (const h of history) {
+            if (h.expiresAt && h.expiresAt <= now) {
+                toDelete.push(h);
+            } else {
+                toKeep.push(h);
+            }
+        }
+
+        if (toDelete.length > 0) {
+            console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
+            history.length = 0;
+            history.push(...toKeep);
+            // Also delete files from disk
+            for (const h of toDelete) {
+                fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
+                    console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
+                });
+            }
+        }
+    }, 60000); // Run every minute
+}
 
