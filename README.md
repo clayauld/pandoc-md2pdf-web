@@ -30,7 +30,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml up --build
 ## Project layout
 - `public/`: static single-page UI
 - `server/`: Node.js Express backend (uploads + Pandoc invocation)
-- `convert_to_pdf.sh`, `linebreaks.lua`, `tables.lua`, `watermark.tex`: conversion assets
+- `convert_to_pdf.sh`, `linebreaks.lua`, `watermark.tex`: conversion assets
 - `Dockerfile`, `docker-compose.yml`, `docker-compose.override.yml`: containerization
 
 ## Development

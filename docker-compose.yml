@@ -1,8 +1,6 @@
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/clayauld/pandoc-md2pdf-web:latest
     platform: linux/amd64
     ports:
       - "8080:8080"

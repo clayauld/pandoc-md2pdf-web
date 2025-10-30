@@ -88,7 +88,7 @@ app.post('/convert', upload.single('file'), async (req, res) => {
 
     // Copy required assets
     const projectRoot = path.join(__dirname, '..');
-    const assets = ['linebreaks.lua', 'tables.lua', 'watermark.tex'];
+    const assets = ['linebreaks.lua', 'watermark.tex'];
     await Promise.all(
       assets.map(async (a) => {
         try {
@@ -99,6 +99,10 @@ app.post('/convert', upload.single('file'), async (req, res) => {
 
     // If watermark is requested, generate a custom watermark.tex with provided text
     if (watermark) {
+      // Copy vendored draftwatermark.sty into working dir if available
+      try {
+        await fsp.copyFile(path.join(projectRoot, 'tex', 'draftwatermark.sty'), path.join(workDir, 'draftwatermark.sty'));
+      } catch (_) {}
       const escapeLatex = (s) => s
         .replace(/\\/g, '\\\\')
         .replace(/\{/g, '\\{')
@@ -113,17 +117,10 @@ app.post('/convert', upload.single('file'), async (req, res) => {
 
       const escaped = escapeLatex(watermarkText).slice(0, 200); // limit length
       const customWatermark = [
-        '\\usepackage{graphicx}',
-        '\\usepackage{xcolor}',
-        '\\usepackage{eso-pic}',
-        `\\newcommand\\\nWatermarkText{${escaped || 'DRAFT'}}`,
-        '\\AddToShipoutPictureBG{%',
-        '  \\AtPageLowerLeft{%',
-        '    \\raisebox{.5\\paperheight}{\\makebox[\\paperwidth]{\\hfil',
-        '      \\rotatebox{45}{\\textcolor[gray]{0.85}{\\fontsize{60}{60}\\selectfont \\WatermarkText}}',
-        '    \\hfil}}%',
-        '  }%',
-        '}',
+        '\\usepackage{draftwatermark}',
+        `\\SetWatermarkText{${escaped || 'DRAFT'}}`,
+        '\\SetWatermarkScale{1.25}',
+        '\\SetWatermarkColor[gray]{0.85}',
         ''
       ].join('\n');
       await fsp.writeFile(path.join(workDir, 'watermark.tex'), customWatermark, 'utf8');

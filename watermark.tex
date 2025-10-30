@@ -1,11 +1,4 @@
-\usepackage{graphicx}
-\usepackage{xcolor}
-\usepackage{eso-pic}
-\newcommand\WatermarkText{DRAFT}
-\AddToShipoutPictureBG{%
-  \AtPageLowerLeft{%
-    \raisebox{.5\paperheight}{\makebox[\paperwidth]{\hfil
-      \rotatebox{45}{\textcolor[gray]{0.85}{\fontsize{60}{60}\selectfont \WatermarkText}}
-    \hfil}}%
-  }%
-}
+\usepackage{draftwatermark}
+\SetWatermarkText{DRAFT}
+\SetWatermarkScale{1.25}
+\SetWatermarkColor[gray]{0.85}
