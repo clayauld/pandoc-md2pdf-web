@@ -25,8 +25,37 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// In-memory history of recent conversions
-const history = [];
+// History of recent conversions
+const DB_FILE = path.join(__dirname, 'tmp', 'history.json');
+let history = [];
+
+// Ensure the directory for the history file exists
+try {
+  fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+} catch (err) {
+  console.error('Failed to create directory for history database:', err);
+}
+
+function loadHistory() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf8');
+      history = JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Error loading history:', err);
+  }
+}
+
+async function saveHistory() {
+  try {
+    await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving history:', err);
+  }
+}
+
+loadHistory();
 
 function parseTtl(ttl) {
   if (!ttl) return 3600 * 1000; // Default: 1 hour
@@ -39,6 +68,7 @@ function parseTtl(ttl) {
     case 'h': return value * 3600 * 1000;
     case 'd': return value * 24 * 3600 * 1000;
     case 'w': return value * 7 * 24 * 3600 * 1000;
+    case 'M': return value * 30 * 24 * 3600 * 1000; // Approx. 30 days
     default: return 3600 * 1000;
   }
 }
@@ -245,6 +275,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         expiresAt: HISTORY_EXPIRATION_MS > 0 ? Date.now() + HISTORY_EXPIRATION_MS : undefined,
         workDir,
     });
+    await saveHistory();
     res.json({ id, results });
 
   } catch (err) {
@@ -376,6 +407,7 @@ if (HISTORY_EXPIRATION_MS > 0) {
             console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
             history.length = 0;
             history.push(...toKeep);
+            await saveHistory();
             // Also delete files from disk
             for (const h of toDelete) {
                 fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {

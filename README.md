@@ -62,7 +62,7 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 
 ## 📸 Screenshot
 
-![Pandoc Web UI Screenshot](screenshot.png)
+![Pandoc Web UI Screenshot](assets/screenshot.png)
 
 ---
 
