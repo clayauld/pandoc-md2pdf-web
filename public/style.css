@@ -89,3 +89,10 @@ button[disabled] {
   h1 { font-size: 20px; }
   .drop { padding: 16px; }
 }
+
+@media (max-width: 480px) {
+  .drop { padding: 24px 12px; }
+  h1 { font-size: 18px; }
+  .file-label { padding: 10px 16px; }
+  button { padding: 10px 16px; }
+}
