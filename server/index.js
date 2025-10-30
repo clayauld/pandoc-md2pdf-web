@@ -67,8 +67,8 @@ const MAX_FILE_NAME_LENGTH = 255;
 function sanitizeBaseName(name) {
   // Ensure name is a string, truncate to a reasonable length (e.g., 255)
   name = typeof name === 'string' ? name : String(name);
-  if (name.length > MAX_FILE_NAME_LENGTH) {
-    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  if (name.length > 255) {
+    name = name.slice(0, 255);
   }
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
@@ -298,7 +298,7 @@ app.get('/download/:id/:filename', downloadLimiter, (req, res) => {
   });
 });
 
-app.get('/download-zip/:id', (req, res) => {
+app.get('/download-zip/:id', downloadLimiter, (req, res) => {
     const { id } = req.params;
     const saneId = sanitizeBaseName(id);
 
