@@ -8,6 +8,9 @@ const mime = require('mime-types');
 const { nanoid } = require('nanoid');
 const archiver = require('archiver');
 
+// Rate limiting for download endpoints
+const rateLimit = require('express-rate-limit');
+
 require('dotenv').config();
 
 const app = express();
@@ -204,7 +207,16 @@ app.get('/history', (req, res) => {
   })));
 });
 
-app.get('/download/:id/:filename', (req, res) => {
+// Rate limiter for download endpoints: 20 requests per minute per IP
+const downloadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many download requests from this IP, please try again later.',
+});
+
+app.get('/download/:id/:filename', downloadLimiter, (req, res) => {
   const { id, filename } = req.params;
   // Sanitize to prevent path traversal
   const saneId = sanitizeBaseName(id);
