@@ -65,19 +65,38 @@ input[type="file"] {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
+  text-align: left;
+  padding: 0 8px;
+  min-width: 0;
 }
 
 .file-remove {
   background: none;
   border: none;
-  color: #ef4444;
+  color: #9ca3af;
   cursor: pointer;
-  font-size: 1.2em;
-  padding: 0 5px;
+  font-size: 1em;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .file-remove:hover {
-  color: #dc2626;
+  color: #ef4444;
+}
+
+.results a {
+  display: inline-block;
+  background: #2563eb;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-top: 5px;
+  transition: background-color 0.2s;
+}
+
+.results a:hover {
+  background: #1d4ed8;
 }
 
 .opt {
