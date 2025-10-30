@@ -63,6 +63,11 @@ const upload = multer({
 });
 
 function sanitizeBaseName(name) {
+  // Ensure name is a string, truncate to a reasonable length (e.g., 255)
+  name = typeof name === 'string' ? name : String(name);
+  if (name.length > 255) {
+    name = name.slice(0, 255);
+  }
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
   for (let i = 0; i < name.length; i++) {
