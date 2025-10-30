@@ -43,6 +43,8 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
             type=sha
+            # Also tag default branch builds as "latest"
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
