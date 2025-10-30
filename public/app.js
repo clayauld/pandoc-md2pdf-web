@@ -10,20 +10,21 @@
   const watermark = document.getElementById('watermark');
   const watermarkText = document.getElementById('watermarkText');
 
+  let selectedFiles = [];
+
   function setStatus(msg) { status.textContent = msg || ''; }
   function enableSubmit(enable) { submit.disabled = !enable; }
   function clearResults() { results.innerHTML = ''; }
 
   function renderFileList() {
     fileList.innerHTML = '';
-    const files = fileInput.files;
-    if (files.length === 0) return;
+    if (selectedFiles.length === 0) return;
 
     const title = document.createElement('h4');
     title.textContent = 'Selected files';
     fileList.appendChild(title);
 
-    for (const file of files) {
+    for (const file of selectedFiles) {
       const fileDiv = document.createElement('div');
       fileDiv.className = 'file-item';
 
@@ -35,15 +36,40 @@
       name.className = 'file-name';
       name.textContent = file.name;
 
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'file-remove';
+      removeBtn.textContent = '✖';
+      removeBtn.dataset.filename = file.name;
+
       fileDiv.appendChild(icon);
       fileDiv.appendChild(name);
+      fileDiv.appendChild(removeBtn);
       fileList.appendChild(fileDiv);
     }
   }
 
+  fileList.addEventListener('click', (e) => {
+    if (e.target.classList.contains('file-remove')) {
+      const filename = e.target.dataset.filename;
+      selectedFiles = selectedFiles.filter(f => f.name !== filename);
+      renderFileList();
+      enableSubmit(selectedFiles.length > 0);
+    }
+  });
+
+  function addFiles(files) {
+    for (const file of files) {
+      if (!selectedFiles.some(f => f.name === file.name)) {
+        selectedFiles.push(file);
+      }
+    }
+  }
+
   fileInput.addEventListener('change', () => {
-    enableSubmit(fileInput.files.length > 0);
+    addFiles(fileInput.files);
+    enableSubmit(selectedFiles.length > 0);
     renderFileList();
+    fileInput.value = ''; // Reset the input
   });
 
   ;['dragenter', 'dragover'].forEach((evt) => drop.addEventListener(evt, (e) => {
@@ -54,8 +80,8 @@
   }));
   drop.addEventListener('drop', (e) => {
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-      fileInput.files = e.dataTransfer.files;
-      enableSubmit(true);
+      addFiles(e.dataTransfer.files);
+      enableSubmit(selectedFiles.length > 0);
       renderFileList();
     }
   });
@@ -69,13 +95,13 @@
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!fileInput.files.length) return;
+    if (selectedFiles.length === 0) return;
     setStatus('Converting...');
     clearResults();
     enableSubmit(false);
 
     const data = new FormData();
-    for (const file of fileInput.files) {
+    for (const file of selectedFiles) {
       data.append('files', file);
     }
     data.append('watermark', watermark.checked ? 'true' : 'false');
