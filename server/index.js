@@ -23,6 +23,7 @@ function parseTtl(ttl) {
   if (isNaN(value)) return 3600 * 1000;
 
   switch (unit) {
+    case 'm': return value * 60 * 1000;
     case 'h': return value * 3600 * 1000;
     case 'd': return value * 24 * 3600 * 1000;
     case 'w': return value * 7 * 24 * 3600 * 1000;
