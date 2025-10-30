@@ -49,19 +49,21 @@ function loadHistory() {
 
 let saveChain = Promise.resolve();
 
-async function saveHistory() {
-  // Wait for the previous save to complete (or fail).
-  // The .catch() prevents an unhandled rejection from stopping the process if the previous save failed.
-  await saveChain.catch(() => {});
+/**
+ * Atomically updates the history array and saves it to disk.
+ * This function serializes all history modifications to prevent race conditions.
+ * @param {function(Array): any} updateFn A function that mutates the history array.
+ * @returns {Promise<any>} A promise that resolves with the return value of updateFn.
+ */
+async function saveHistory(updateFn) {
+  const newSavePromise = saveChain.catch(() => {}).then(async () => {
+    const result = updateFn(history);
+    await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
+    return result;
+  });
 
-  // Now, perform the new save.
-  const newSave = fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
-
-  // The next call to saveHistory will wait for this new save operation.
-  saveChain = newSave;
-
-  // Return the promise so the caller can await it and handle success or failure.
-  return newSave;
+  saveChain = newSavePromise;
+  return newSavePromise;
 }
 
 loadHistory();
