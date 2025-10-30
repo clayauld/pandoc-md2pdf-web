@@ -2,12 +2,90 @@
 body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 0; background: #0b1220; color: #e6edf3; }
 main { max-width: 720px; margin: 40px auto; padding: 0 16px; }
 h1 { font-size: 24px; margin-bottom: 16px; }
-.drop { border: 2px dashed #334155; border-radius: 12px; padding: 24px; text-align: center; background: #111827; }
-.drop.dragover { border-color: #60a5fa; background: #0f172a; }
-input[type="file"] { display: inline-block; margin-top: 8px; }
-.opt { display: block; margin: 16px 0; }
-button { background: #2563eb; color: white; border: 0; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-button[disabled] { background: #1f2937; cursor: not-allowed; }
+.drop {
+  border: 2px dashed #4a5568;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  background: #1e293b;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.drop:hover {
+  background: #2b374d;
+  border-color: #60a5fa;
+}
+
+.drop.dragover {
+  border-color: #60a5fa;
+  background: #0f172a;
+}
+
+input[type="file"] {
+  display: none; /* Hide the default input */
+}
+
+/* Style the label to look like a button */
+.file-label {
+  display: inline-block;
+  background: #2563eb;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s;
+  margin-top: 16px;
+}
+
+.file-label:hover {
+  background: #1d4ed8;
+}
+.opt {
+  display: block;
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+}
+
+input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+input[type="text"] {
+  background: #1e293b;
+  border: 1px solid #4a5568;
+  border-radius: 6px;
+  color: #e6edf3;
+  padding: 8px 12px;
+  margin-left: 8px;
+}
+
+button {
+  background: #2563eb;
+  color: white;
+  border: 0;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  width: 100%;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+button:hover:not([disabled]) {
+  background: #1d4ed8;
+}
+
+button[disabled] {
+  background: #1f2937;
+  cursor: not-allowed;
+}
 .status { margin-top: 16px; min-height: 24px; color: #93c5fd; }
 
-
+@media (max-width: 768px) {
+  main { margin-top: 20px; padding: 0 12px; }
+  h1 { font-size: 20px; }
+  .drop { padding: 16px; }
+}

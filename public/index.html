@@ -11,8 +11,11 @@
       <h1>Pandoc Web Converter</h1>
       <form id="form" action="/convert" method="post" enctype="multipart/form-data">
         <div id="drop" class="drop">
-          <p>Drag & drop a .md file here</p>
+          <h4>Drag & drop a .md file here</h4>
           <p>or</p>
+          <label for="file" class="file-label">
+            Choose a file
+          </label>
           <input id="file" name="file" type="file" accept=".md,text/markdown" />
         </div>
         <label class="opt">
