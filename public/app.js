@@ -16,6 +16,20 @@
   function enableSubmit(enable) { submit.disabled = !enable; }
   function clearResults() { results.innerHTML = ''; }
 
+  function getFileKey(file) {
+    const rel = (file.webkitRelativePath || '').trim();
+    if (rel) return rel;
+    return `${file.name}__${file.size}__${file.lastModified}`;
+  }
+
+  function splitFilename(name) {
+    const idx = name.lastIndexOf('.');
+    return {
+      base: idx > 0 ? name.slice(0, idx) : name,
+      ext: idx > 0 ? name.slice(idx) : ''
+    };
+  }
+
   function renderFileList() {
     fileList.innerHTML = '';
     if (selectedFiles.length === 0) return;
@@ -39,7 +53,7 @@
       const removeBtn = document.createElement('button');
       removeBtn.className = 'file-remove';
       removeBtn.textContent = '✖';
-      removeBtn.dataset.filename = file.name;
+      removeBtn.dataset.filekey = getFileKey(file);
 
       fileDiv.appendChild(icon);
       fileDiv.appendChild(name);
@@ -50,8 +64,8 @@
 
   fileList.addEventListener('click', (e) => {
     if (e.target.classList.contains('file-remove')) {
-      const filename = e.target.dataset.filename;
-      selectedFiles = selectedFiles.filter(f => f.name !== filename);
+      const filekey = e.target.dataset.filekey;
+      selectedFiles = selectedFiles.filter(f => getFileKey(f) !== filekey);
       renderFileList();
       enableSubmit(selectedFiles.length > 0);
     }
@@ -59,7 +73,8 @@
 
   function addFiles(files) {
     for (const file of files) {
-      if (!selectedFiles.some(f => f.name === file.name)) {
+      const key = getFileKey(file);
+      if (!selectedFiles.some(f => getFileKey(f) === key)) {
         selectedFiles.push(file);
       }
     }
@@ -101,8 +116,22 @@
     enableSubmit(false);
 
     const data = new FormData();
+    const nameCounts = Object.create(null);
     for (const file of selectedFiles) {
-      data.append('files', file);
+      nameCounts[file.name] = (nameCounts[file.name] || 0) + 1;
+    }
+    const nameSeen = Object.create(null);
+    for (const file of selectedFiles) {
+      const total = nameCounts[file.name] || 1;
+      let uploadName = file.name;
+      if (total > 1) {
+        const count = (nameSeen[file.name] || 0) + 1;
+        nameSeen[file.name] = count;
+        const { base, ext } = splitFilename(file.name);
+        const cleanBase = base.replace(/_+$/, '');
+        uploadName = `${cleanBase} ${count}${ext}`;
+      }
+      data.append('files', file, uploadName);
     }
     data.append('watermark', watermark.checked ? 'true' : 'false');
     if (watermark.checked) {

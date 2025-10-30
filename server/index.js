@@ -54,10 +54,20 @@ function sanitizeBaseName(name) {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+function stripTrailingDelimiters(name) {
+  // Remove trailing underscores, dots, or hyphens from a base filename
+  return name.replace(/[_\-.]+$/, '');
+}
+
+function collapseUnderscores(name) {
+  return name.replace(/_+/g, '_');
+}
+
 function runPandoc({ cwd, mdFileName, useWatermark }) {
   return new Promise((resolve, reject) => {
     const inputPath = path.join(cwd, mdFileName);
-    const base = mdFileName.replace(/\.md$/i, '');
+    const baseRaw = mdFileName.replace(/\.md$/i, '');
+    const base = collapseUnderscores(stripTrailingDelimiters(baseRaw)) || baseRaw;
     const outDir = path.join(cwd, 'pdf_output');
     const outFile = path.join(outDir, `${base}.pdf`);
 
