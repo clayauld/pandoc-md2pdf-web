@@ -60,6 +60,12 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 
 ---
 
+## 📸 Screenshot
+
+![Pandoc Web UI Screenshot](screenshot.png)
+
+---
+
 ## 📋 Prerequisites
 
 **To run this application, you need:**
