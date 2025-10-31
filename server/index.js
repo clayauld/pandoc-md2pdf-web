@@ -173,7 +173,7 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
 
     const args = [
       inputPath,
-      '--lua-filter', path.join(cwd, 'linebreaks.lua'),
+      '--lua-filter', '/app/linebreaks.lua',
       '-o', outFile,
       '--pdf-engine=xelatex',
       '-V', 'geometry:margin=1in',
@@ -190,7 +190,18 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
 
     fs.mkdirSync(outDir, { recursive: true });
 
-    const child = execFile('pandoc', args, { cwd }, (err) => {
+    // Ensure xelatex can find our vendored draftwatermark.sty
+    const execOpts = {
+      cwd,
+      env: {
+        ...process.env,
+        // Prepend /app/tex to TEXINPUTS. The double-colon at the end ensures
+        // that the default search paths are still used, which includes the cwd.
+        TEXINPUTS: `/app/tex:${process.env.TEXINPUTS || ''}:`,
+      },
+    };
+
+    const child = execFile('pandoc', args, execOpts, (err) => {
       if (err) return reject(err);
       resolve(outFile);
     });
@@ -214,22 +225,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
   try {
     await fsp.mkdir(workDir, { recursive: true });
 
-    // Copy required assets once per batch
-    const projectRoot = path.join(__dirname, '..');
-    const assets = ['linebreaks.lua', 'watermark.tex'];
-    await Promise.all(
-      assets.map(async (a) => {
-        try {
-          await fsp.copyFile(path.join(projectRoot, a), path.join(workDir, a));
-        } catch (_) {}
-      })
-    );
-
     if (watermark) {
-      // Copy vendored draftwatermark.sty into working dir if available
-      try {
-        await fsp.copyFile(path.join(projectRoot, 'tex', 'draftwatermark.sty'), path.join(workDir, 'draftwatermark.sty'));
-      } catch (_) {}
       const escapeLatex = (s) => s
         .replace(/\\/g, '\\\\')
         .replace(/\{/g, '\\{')
