@@ -226,27 +226,35 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
     await fsp.mkdir(workDir, { recursive: true });
 
     if (watermark) {
-      const escapeLatex = (s) => s
-        .replace(/\\/g, '\\\\')
-        .replace(/\{/g, '\\{')
-        .replace(/\}/g, '\\}')
-        .replace(/\^/g, '\\^{}')
-        .replace(/\~/g, '\\~{}')
-        .replace(/\$/g, '\\$')
-        .replace(/#/g, '\\#')
-        .replace(/%/g, '\\%')
-        .replace(/&/g, '\\&')
-        .replace(/_/g, '\\_');
+      const staticWatermarkPath = '/app/watermark.tex';
+      try {
+        await fsp.access(staticWatermarkPath, fs.constants.R_OK);
+        // If a static override exists, copy it to the working directory.
+        await fsp.copyFile(staticWatermarkPath, path.join(workDir, 'watermark.tex'));
+      } catch (err) {
+        // Otherwise, generate the watermark dynamically based on user text.
+        const escapeLatex = (s) => s
+          .replace(/\\/g, '\\\\')
+          .replace(/\{/g, '\\{')
+          .replace(/\}/g, '\\}')
+          .replace(/\^/g, '\\^{}')
+          .replace(/\~/g, '\\~{}')
+          .replace(/\$/g, '\\$')
+          .replace(/#/g, '\\#')
+          .replace(/%/g, '\\%')
+          .replace(/&/g, '\\&')
+          .replace(/_/g, '\\_');
 
-      const escaped = escapeLatex(watermarkText).slice(0, 200); // limit length
-      const customWatermark = [
-        '\\usepackage{draftwatermark}',
-        `\\SetWatermarkText{${escaped || 'DRAFT'}}`,
-        '\\SetWatermarkScale{1.25}',
-        '\\SetWatermarkColor[gray]{0.85}',
-        ''
-      ].join('\n');
-      await fsp.writeFile(path.join(workDir, 'watermark.tex'), customWatermark, 'utf8');
+        const escaped = escapeLatex(watermarkText).slice(0, 200); // limit length
+        const customWatermark = [
+          '\\usepackage{draftwatermark}',
+          `\\SetWatermarkText{${escaped || 'DRAFT'}}`,
+          '\\SetWatermarkScale{1.25}',
+          '\\SetWatermarkColor[gray]{0.85}',
+          ''
+        ].join('\n');
+        await fsp.writeFile(path.join(workDir, 'watermark.tex'), customWatermark, 'utf8');
+      }
     }
 
     const results = [];

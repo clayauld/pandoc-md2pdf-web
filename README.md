@@ -365,6 +365,32 @@ The application uses sensible defaults for PDF generation. These are configured 
 
 **Advanced**: To modify these settings, edit the Pandoc arguments in `server/index.js` and rebuild the image.
 
+### Overriding Conversion Assets
+
+For advanced customization, you can override the default `linebreaks.lua` and `watermark.tex` files by mounting your own versions into the container. This is useful for modifying conversion logic without rebuilding the Docker image.
+
+Create a directory on your host machine (e.g., `./my_assets`) and place your custom files inside:
+
+```
+my_assets/
+  ├── linebreaks.lua
+  └── watermark.tex
+```
+
+Then, add a `volumes` mapping to your `docker-compose.yml`:
+
+```yaml
+services:
+  web:
+    # ... other settings
+    volumes:
+      # Mount your custom assets to their in-container locations
+      - ./my_assets/linebreaks.lua:/app/linebreaks.lua
+      - ./my_assets/watermark.tex:/app/watermark.tex
+```
+
+Restart the container (`docker compose up -d --force-recreate`) to apply the changes. The application will now use your local files for the conversion process.
+
 ### Special Features
 
 - **Line Breaks**: The included `linebreaks.lua` filter converts HTML `<break>` tags in your Markdown to proper LaTeX line breaks
