@@ -11,7 +11,7 @@ for file in *.md; do
         filename=$(basename "$file" .md)
         # Convert to PDF using pandoc with XeLaTeX
         pandoc "$file" \
-            --lua-filter ./linebreaks.lua \
+            --lua-filter ./filter.lua \
             -o "pdf_output/${filename}.pdf" \
             --pdf-engine=xelatex \
             -V geometry:margin=1in \

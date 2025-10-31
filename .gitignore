@@ -22,3 +22,6 @@ completed/pdf_output/
 # Docker
 **/.env
 **/.env.local
+
+# App data
+app-data/

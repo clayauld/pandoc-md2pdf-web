@@ -29,7 +29,7 @@ COPY server/ ./server/
 COPY public/ ./public/
 
 # Copy conversion assets
-COPY convert_to_pdf.sh linebreaks.lua watermark.tex ./
+COPY server/scripts/convert_to_pdf.sh server/scripts/filter.lua server/scripts/watermark.tex ./
 RUN chmod +x convert_to_pdf.sh
 
 # Vendor draftwatermark from GitHub release R3.3 and build the .sty

@@ -8,8 +8,6 @@ services:
       - ./server:/app/server
       # Keep container-installed deps even when mounting the source directory
       - /app/server/node_modules
-      - ./linebreaks.lua:/app/linebreaks.lua:ro
-      - ./watermark.tex:/app/watermark.tex:ro
-      - ./convert_to_pdf.sh:/app/convert_to_pdf.sh:ro
-
-
+      - ./server/scripts/filter.lua:/app/filter.lua:ro
+      - ./server/scripts/watermark.tex:/app/watermark.tex:ro
+      - ./server/scripts/convert_to_pdf.sh:/app/convert_to_pdf.sh:ro

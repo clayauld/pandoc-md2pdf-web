@@ -367,13 +367,13 @@ The application uses sensible defaults for PDF generation. These are configured 
 
 ### Overriding Conversion Assets
 
-For advanced customization, you can override the default `linebreaks.lua` and `watermark.tex` files by mounting your own versions into the container. This is useful for modifying conversion logic without rebuilding the Docker image.
+For advanced customization, you can override the default `filter.lua` and `watermark.tex` files by mounting your own versions into the container. This is useful for modifying conversion logic without rebuilding the Docker image.
 
 Create a directory on your host machine (e.g., `./my_assets`) and place your custom files inside:
 
 ```
 my_assets/
-  ├── linebreaks.lua
+  ├── filter.lua
   └── watermark.tex
 ```
 
@@ -385,7 +385,7 @@ services:
     # ... other settings
     volumes:
       # Mount your custom assets to their in-container locations
-      - ./my_assets/linebreaks.lua:/app/linebreaks.lua
+      - ./my_assets/filter.lua:/app/filter.lua
       - ./my_assets/watermark.tex:/app/watermark.tex
 ```
 
@@ -398,7 +398,7 @@ chmod +r ./my_assets/*
 
 ### Special Features
 
-- **Line Breaks**: The included `linebreaks.lua` filter converts HTML `<break>` tags in your Markdown to proper LaTeX line breaks
+- **Line Breaks**: The included `filter.lua` filter is currently commented out and effectively empty. To use a Lua filter, you should map your own filter file to `/app/filter.lua` using Docker volumes (e.g., `- ./my_assets/filter.lua:/app/filter.lua`) and configure it as needed. Without this mapping, the default system won't process any filters (a commented-out Lua filter does nothing). 
 - **Watermarks**: When enabled, injects `watermark.tex` which uses the LaTeX `draftwatermark` package
 
 ---
@@ -504,12 +504,12 @@ docker compose logs web | grep -i error
 > > > index.js              # Main server file, routes, Pandoc logic
 > > > package.json          # Node.js dependencies
 > > > fonts/                # Custom fonts (copied to container)
+> > > scripts/              # Conversion scripts
+> > > > convert_to_pdf.sh   # Shell script for Pandoc conversion
+> > > > filter.lua            # Lua filter for line break handling
+> > > > watermark.tex             # LaTeX template for watermarks
 > > > > OTF/              # OpenType fonts
 > > > tmp/                  # Temporary upload directories (auto-created)
-> >
-> > convert_to_pdf.sh         # Shell script for Pandoc conversion
-> > linebreaks.lua            # Lua filter for line break handling
-> > watermark.tex             # LaTeX template for watermarks
 > >
 > > Dockerfile                # Container build instructions
 > > docker-compose.yml        # Production compose config
@@ -532,9 +532,9 @@ docker compose logs web | grep -i error
 
 **To change conversion logic**:
 - Edit `server/index.js` (Pandoc arguments, routes)
-- Edit `convert_to_pdf.sh` (shell script wrapper)
-- Edit `linebreaks.lua` (Lua filter)
-- Edit `watermark.tex` (LaTeX watermark template)
+- Edit `server/scripts/convert_to_pdf.sh` (shell script wrapper)
+- Edit `server/scripts/filter.lua` (Lua filter)
+- Edit `server/scripts/watermark.tex` (LaTeX watermark template)
 
 **To add dependencies**:
 - Update `server/package.json`
@@ -703,9 +703,9 @@ This application is designed for trusted environments. Security considerations:
 > > > fonts/              # Custom fonts (bundled in image)
 > > > tmp/                # Temporary upload directories
 > >
-> > 🔧 Conversion Scripts
+> > 🔧 Conversion Scripts (server/scripts/)
 > > > convert_to_pdf.sh   # Shell wrapper for Pandoc
-> > > linebreaks.lua      # Lua filter for line breaks
+> > > filter.lua      # Lua filter for line breaks
 > > > watermark.tex       # LaTeX watermark template
 > >
 > > 🐳 Docker Configuration
