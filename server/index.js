@@ -29,44 +29,38 @@ const PORT = process.env.PORT || 8080;
 const DB_FILE = path.join(__dirname, 'tmp', 'history.json');
 let history = [];
 
-// Ensure the directory for the history file exists
-try {
-  fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
-} catch (err) {
-  console.error('Failed to create directory for history database:', err);
-}
-
-function loadHistory() {
+async function loadHistory() {
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, 'utf8');
-      history = JSON.parse(data);
-    }
+    await fsp.mkdir(path.dirname(DB_FILE), { recursive: true });
+    const data = await fsp.readFile(DB_FILE, 'utf8');
+    history = JSON.parse(data);
   } catch (err) {
+    if (err.code === 'ENOENT') {
+      // History file doesn't exist yet, which is normal on first run.
+      return;
+    }
     console.error('Error loading history:', err);
   }
 }
 
 let saveChain = Promise.resolve();
 
-/**
- * Atomically updates the history array and saves it to disk.
- * This function serializes all history modifications to prevent race conditions.
- * @param {function(Array): any} updateFn A function that mutates the history array.
- * @returns {Promise<any>} A promise that resolves with the return value of updateFn.
- */
-async function saveHistory(updateFn) {
-  const newSavePromise = saveChain.catch(() => {}).then(async () => {
-    const result = updateFn(history);
-    await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
-    return result;
-  });
+async function saveHistory() {
+  // Wait for the previous save to complete (or fail).
+  // The .catch() prevents an unhandled rejection from stopping the process if the previous save failed.
+  await saveChain.catch(() => {});
 
-  saveChain = newSavePromise;
-  return newSavePromise;
+  // Now, perform the new save.
+  const newSave = fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
+
+  // The next call to saveHistory will wait for this new save operation.
+  saveChain = newSave;
+
+  // Return the promise so the caller can await it and handle success or failure.
+  return newSave;
 }
 
-loadHistory();
+loadHistory().catch(err => console.error('Initialization failed:', err));
 
 function parseTtl(ttl) {
   if (!ttl) return 3600 * 1000; // Default: 1 hour
