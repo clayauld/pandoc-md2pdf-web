@@ -9,6 +9,16 @@
   const history = document.getElementById('history');
   const watermark = document.getElementById('watermark');
   const watermarkText = document.getElementById('watermarkText');
+  const useCustomFilter = document.getElementById('useCustomFilter');
+  const filterName = document.getElementById('filterName');
+  const filterCode = document.getElementById('filterCode');
+  const filterModeOverride = document.querySelector('input[name="filterMode"][value="override"]');
+  const filterModeAdditional = document.querySelector('input[name="filterMode"][value="additional"]');
+  const saveFilterBtn = document.getElementById('saveFilter');
+  const filterStatus = document.getElementById('filterStatus');
+  const savedFilterDisplay = document.getElementById('savedFilterDisplay');
+  const savedFilterName = document.getElementById('savedFilterName');
+  const savedFilterCode = document.getElementById('savedFilterCode');
 
   let selectedFiles = [];
 
@@ -236,6 +246,162 @@
   }
 
   loadHistory();
+
+  // Filter management functions
+  function setFilterStatus(msg, isError = false) {
+    filterStatus.textContent = msg || '';
+    filterStatus.style.color = isError ? '#ef4444' : '#93c5fd';
+  }
+
+  function updateSavedFilterDisplay(name, code) {
+    if (name && code) {
+      savedFilterName.textContent = name;
+      savedFilterCode.textContent = code;
+      savedFilterDisplay.style.display = 'block';
+    } else {
+      savedFilterDisplay.style.display = 'none';
+    }
+  }
+
+  async function loadDefaultFilter() {
+    try {
+      const res = await fetch('/api/filter/default');
+      if (res.ok) {
+        const code = await res.text();
+        if (!filterCode.value || filterCode.value.trim() === '') {
+          filterCode.value = code;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load default filter:', err);
+    }
+  }
+
+  async function loadCustomFilter() {
+    try {
+      const res = await fetch('/api/filter/custom');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name && data.code) {
+          // Custom filter exists (enabled or disabled)
+          filterName.value = data.name;
+          filterCode.value = data.code;
+          useCustomFilter.checked = data.enabled || false;
+          if (data.mode === 'override') {
+            filterModeOverride.checked = true;
+          } else {
+            filterModeAdditional.checked = true;
+          }
+          updateSavedFilterDisplay(data.name, data.code);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load custom filter:', err);
+    }
+  }
+
+  async function handleSaveFilter() {
+    const name = filterName.value.trim();
+    const code = filterCode.value.trim();
+    const mode = filterModeOverride.checked ? 'override' : 'additional';
+    const enabled = useCustomFilter.checked;
+
+    if (!name) {
+      setFilterStatus('Filter name is required', true);
+      return;
+    }
+    if (!code) {
+      setFilterStatus('Filter code is required', true);
+      return;
+    }
+
+    try {
+      setFilterStatus('Saving filter...');
+      const res = await fetch('/api/filter/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, code, mode, enabled }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setFilterStatus(`Filter "${result.name}" saved successfully`);
+        updateSavedFilterDisplay(result.name, code);
+      } else {
+        const error = await res.json();
+        setFilterStatus(error.error || 'Failed to save filter', true);
+      }
+    } catch (err) {
+      setFilterStatus('Error saving filter: ' + (err.message || err), true);
+      console.error('Error saving filter:', err);
+    }
+  }
+
+  async function updateFilterEnabled() {
+    const enabled = useCustomFilter.checked;
+    const name = filterName.value.trim();
+    const code = filterCode.value.trim();
+
+    if (enabled && (!name || !code)) {
+      setFilterStatus('Please save the filter first before enabling it', true);
+      useCustomFilter.checked = false;
+      return;
+    }
+
+    // Fetch the saved config to preserve the last saved mode, not the current UI state
+    // This prevents accidentally saving an unsaved mode change when toggling the checkbox
+    let savedMode = filterModeOverride.checked ? 'override' : 'additional'; // fallback to current UI
+    try {
+      const customRes = await fetch('/api/filter/custom');
+      if (customRes.ok) {
+        const customData = await customRes.json();
+        if (customData.mode) {
+          savedMode = customData.mode; // Use the saved mode from server
+        }
+      }
+    } catch (err) {
+      // If fetching fails, fall back to current UI state (should be rare)
+      console.warn('Could not fetch saved filter mode, using UI state as fallback');
+    }
+
+    // Update only the enabled state, preserving the saved mode
+    try {
+      const res = await fetch('/api/filter/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, code, mode: savedMode, enabled }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        setFilterStatus(error.error || 'Failed to update filter state', true);
+        useCustomFilter.checked = !enabled;
+      } else {
+        setFilterStatus(enabled ? 'Custom filter enabled' : 'Custom filter disabled');
+        // Keep the custom filter code visible even when disabled so users can see/edit it
+      }
+    } catch (err) {
+      setFilterStatus('Error updating filter state: ' + (err.message || err), true);
+      useCustomFilter.checked = !enabled;
+      console.error('Error updating filter state:', err);
+    }
+  }
+
+  // Event listeners for filter management
+  saveFilterBtn.addEventListener('click', handleSaveFilter);
+  useCustomFilter.addEventListener('change', updateFilterEnabled);
+
+  // Load filters on page load
+  (async () => {
+    // Load default filter first
+    await loadDefaultFilter();
+    // Then load custom filter if it exists (it will override the default in the textarea)
+    await loadCustomFilter();
+  })();
 })();
 
 
