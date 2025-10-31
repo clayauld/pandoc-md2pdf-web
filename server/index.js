@@ -236,15 +236,15 @@ function runPandoc({ cwd, mdFileName, watermarkPath, customFilterPath, filterMod
     if (customFilterPath && filterMode === 'override') {
       // Override mode: use only custom filter, skip default
       args.push('--lua-filter', customFilterPath);
-    } else if (customFilterPath && filterMode === 'additional') {
-      // Additional mode: use default filter first, then custom
-      const defaultFilterPath = getDefaultFilterPath();
-      args.push('--lua-filter', defaultFilterPath);
-      args.push('--lua-filter', customFilterPath);
     } else {
-      // Default behavior: use default filter only
+      // For all other cases, the default filter is included.
       const defaultFilterPath = getDefaultFilterPath();
       args.push('--lua-filter', defaultFilterPath);
+
+      // If in 'additional' mode, add the custom filter after the default one.
+      if (customFilterPath && filterMode === 'additional') {
+        args.push('--lua-filter', customFilterPath);
+      }
     }
 
     args.push(
