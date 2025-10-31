@@ -1,6 +1,6 @@
 services:
   web:
-    build: .
+    image: ghcr.io/clayauld/pandoc-md2pdf-web:latest
     ports:
       - "8080:8080"
     env_file:
