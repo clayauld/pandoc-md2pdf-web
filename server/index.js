@@ -45,19 +45,20 @@ async function loadHistory() {
 
 let saveChain = Promise.resolve();
 
-async function saveHistory() {
-  // Wait for the previous save to complete (or fail).
-  // The .catch() prevents an unhandled rejection from stopping the process if the previous save failed.
-  await saveChain.catch(() => {});
-
-  // Now, perform the new save.
-  const newSave = fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
-
-  // The next call to saveHistory will wait for this new save operation.
-  saveChain = newSave;
-
-  // Return the promise so the caller can await it and handle success or failure.
-  return newSave;
+/**
+ * Atomically updates the history array and saves it to disk.
+ * This function serializes all history modifications to prevent race conditions.
+ * @param {function(Array): any} updateFn A function that mutates the history array.
+ * @returns {Promise<any>} A promise that resolves with the return value of updateFn.
+ */
+async function saveHistory(updateFn) {
+  const newSavePromise = saveChain.catch(() => {}).then(async () => {
+    const result = updateFn(history);
+    await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
+    return result;
+  });
+  saveChain = newSavePromise;
+  return newSavePromise;
 }
 
 loadHistory().catch(err => console.error('Initialization failed:', err));
@@ -272,15 +273,14 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
       }
     }
 
-    history.push({
+    await saveHistory(h => h.push({
         id,
         results,
         watermark,
         watermarkText: watermark ? watermarkText : undefined,
         expiresAt: HISTORY_EXPIRATION_MS > 0 ? Date.now() + HISTORY_EXPIRATION_MS : undefined,
         workDir,
-    });
-    await saveHistory();
+    }));
     res.json({ id, results });
 
   } catch (err) {
@@ -397,24 +397,19 @@ app.listen(PORT, () => {
 if (HISTORY_EXPIRATION_MS > 0) {
     setInterval(async () => {
         try {
-            const now = Date.now();
-            const toKeep = [];
-            const toDelete = [];
-
-            for (const h of history) {
-                if (h.expiresAt && h.expiresAt <= now) {
-                    toDelete.push(h);
-                } else {
-                    toKeep.push(h);
+            const toDelete = await saveHistory(h => {
+                const now = Date.now();
+                const expired = h.filter(item => item.expiresAt && item.expiresAt <= now);
+                if (expired.length > 0) {
+                    const toKeep = h.filter(item => !item.expiresAt || item.expiresAt > now);
+                    h.length = 0;
+                    h.push(...toKeep);
                 }
-            }
+                return expired;
+            });
 
-            if (toDelete.length > 0) {
+            if (toDelete && toDelete.length > 0) {
                 console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
-                history.length = 0;
-                history.push(...toKeep);
-                await saveHistory();
-                // Also delete files from disk
                 for (const h of toDelete) {
                     fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
                         console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
