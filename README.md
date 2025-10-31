@@ -200,10 +200,8 @@ The application provides a REST API for programmatic access, perfect for automat
 
 **Parameters**:
 
-**Parameters**:
-
-`file`
-: **File** (✅ Yes) - Your Markdown (`.md`) file
+`files`
+: **File[]** (✅ Yes) - One or more Markdown (`.md`) files (can upload multiple files)
 
 `watermark`
 : **Boolean** (No, default: `false`) - Enable watermark (`true` or `false`)
@@ -213,8 +211,22 @@ The application provides a REST API for programmatic access, perfect for automat
 
 **Response**:
 
-`200` (`application/pdf`)
-: Successfully converted PDF file
+`200` (`application/json`)
+: Successfully queued conversion(s). Returns:
+```json
+{
+  "id": "unique-job-id",
+  "results": [
+    {
+      "name": "document.pdf",
+      "originalName": "document.md",
+      "success": true
+    }
+  ]
+}
+```
+
+To download the PDF, use: `GET /download/:id/:filename`
 
 `400` (`application/json`)
 : Missing or invalid file: `{ "error": "message" }`
@@ -227,18 +239,36 @@ The application provides a REST API for programmatic access, perfect for automat
 #### Example 1: Basic Conversion (using curl)
 
 ```bash
-curl -X POST 'http://localhost:8080/convert' \
-  -F 'file=@my-document.md' \
+# Step 1: Upload and convert
+RESPONSE=$(curl -X POST 'http://localhost:8080/convert' \
+  -F 'files=@my-document.md')
+
+# Step 2: Extract the job ID and filename from the response
+ID=$(echo $RESPONSE | jq -r '.id')
+FILENAME=$(echo $RESPONSE | jq -r '.results[0].name')
+
+# Step 3: Download the PDF
+curl -X GET "http://localhost:8080/download/${ID}/${FILENAME}" \
   -o my-document.pdf
 ```
+
+**Note**: The field name must be `files` (plural), not `file` (singular).
 
 #### Example 2: With Custom Watermark
 
 ```bash
-curl -X POST 'http://localhost:8080/convert' \
-  -F 'file=@proposal.md' \
+# Step 1: Upload and convert with watermark
+RESPONSE=$(curl -X POST 'http://localhost:8080/convert' \
+  -F 'files=@proposal.md' \
   -F 'watermark=true' \
-  -F 'watermarkText=CONFIDENTIAL' \
+  -F 'watermarkText=CONFIDENTIAL')
+
+# Step 2: Extract the job ID and filename
+ID=$(echo $RESPONSE | jq -r '.id')
+FILENAME=$(echo $RESPONSE | jq -r '.results[0].name')
+
+# Step 3: Download the PDF
+curl -X GET "http://localhost:8080/download/${ID}/${FILENAME}" \
   -o proposal.pdf
 ```
 
@@ -246,29 +276,39 @@ curl -X POST 'http://localhost:8080/convert' \
 
 ```python
 import requests
+import json
 
-# Prepare the file and form data
+# Step 1: Upload and convert
 with open('document.md', 'rb') as f:
-    files = {'file': ('document.md', f, 'text/markdown')}
+    files = {'files': ('document.md', f, 'text/markdown')}
     data = {
         'watermark': 'true',
         'watermarkText': 'INTERNAL USE ONLY'
     }
     
-    # Make the request
     response = requests.post(
         'http://localhost:8080/convert',
         files=files,
         data=data
     )
     
-    # Save the PDF
     if response.status_code == 200:
-        with open('document.pdf', 'wb') as pdf:
-            pdf.write(response.content)
-        print('✅ PDF generated successfully!')
+        result = response.json()
+        job_id = result['id']
+        pdf_filename = result['results'][0]['name']
+        
+        # Step 2: Download the PDF
+        download_url = f'http://localhost:8080/download/{job_id}/{pdf_filename}'
+        pdf_response = requests.get(download_url)
+        
+        if pdf_response.status_code == 200:
+            with open('document.pdf', 'wb') as pdf_file:
+                pdf_file.write(pdf_response.content)
+            print('✅ PDF generated successfully!')
+        else:
+            print(f'❌ Download failed: {pdf_response.status_code}')
     else:
-        print(f'❌ Error: {response.json()}')
+        print(f'❌ Conversion failed: {response.json()}')
 ```
 
 #### Example 4: Using JavaScript (Node.js with axios)
@@ -280,17 +320,26 @@ const fs = require('fs');
 
 async function convertToPDF() {
   const form = new FormData();
-  form.append('file', fs.createReadStream('document.md'));
+  form.append('files', fs.createReadStream('document.md'));
   form.append('watermark', 'true');
   form.append('watermarkText', 'DRAFT');
 
   try {
-    const response = await axios.post('http://localhost:8080/convert', form, {
-      headers: form.getHeaders(),
+    // Step 1: Upload and convert
+    const convertResponse = await axios.post('http://localhost:8080/convert', form, {
+      headers: form.getHeaders()
+    });
+    
+    const { id, results } = convertResponse.data;
+    const pdfFilename = results[0].name;
+    
+    // Step 2: Download the PDF
+    const downloadUrl = `http://localhost:8080/download/${id}/${pdfFilename}`;
+    const pdfResponse = await axios.get(downloadUrl, {
       responseType: 'stream'
     });
     
-    response.data.pipe(fs.createWriteStream('document.pdf'));
+    pdfResponse.data.pipe(fs.createWriteStream('document.pdf'));
     console.log('✅ PDF generated successfully!');
   } catch (error) {
     console.error('❌ Error:', error.response?.data || error.message);
