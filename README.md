@@ -572,7 +572,7 @@ docker compose logs web | grep -i error
 - **Frontend**: Vanilla HTML/CSS/JavaScript (no frameworks, lightweight)
 - **Backend**: Node.js 20+ with Express.js
 - **Conversion**: Pandoc 3.x + XeLaTeX + TeXLive
-- **Container**: Docker with Debian base image
+- **Container**: Docker with Alpine base image
 
 ### Making Changes
 
