@@ -421,6 +421,19 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
     }
 
     // Create custom filter directory if it doesn't exist
+    // If the filter name is changing, delete the old file to prevent orphans
+    if (filterConfig?.name && filterConfig.name !== sanitizedName) {
+      const oldFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterConfig.name}.lua`);
+      try {
+        await fsp.unlink(oldFilterPath);
+      } catch (err) {
+        // It's okay if the file doesn't exist, but warn on other errors.
+        if (err.code !== 'ENOENT') {
+          console.warn(`Could not delete old filter file: ${oldFilterPath}`, err);
+        }
+      }
+    }
+
     await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
 
     // Save filter file (only if code is provided and non-empty)
