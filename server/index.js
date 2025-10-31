@@ -446,7 +446,7 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
     const updatedConfig = {
       name: sanitizedName,
       mode: mode || filterConfig?.mode || 'additional',
-      enabled: enabled !== undefined ? enabled : (filterConfig?.enabled !== undefined ? filterConfig.enabled : true)
+      enabled: enabled ?? filterConfig?.enabled ?? true
     };
     await saveCustomFilterConfig(updatedConfig);
 
