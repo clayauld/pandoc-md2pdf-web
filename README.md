@@ -45,9 +45,10 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 - 🖱️ **Simple Drag-and-Drop UI** - No command line required
 - 📝 **Markdown to PDF Conversion** - High-quality output using Pandoc/XeLaTeX
 - 🏷️ **Optional Watermarks** - Add "DRAFT" or custom text watermarks
+- 🔧 **Custom Lua Filters** - Create and save custom Pandoc Lua filters for advanced document processing
 - 🎨 **Beautiful Typography** - Professional Libertinus font family included
 - ⚡ **Fast & Lightweight** - Minimal Docker container, quick startup
-- 🔒 **Secure** - 10MB file limit, isolated temporary directories per request
+- 🔒 **Secure** - 10MB file limit, isolated temporary directories per request, rate limiting
 - 🌐 **REST API** - Integrate with scripts, CI/CD, or other applications
 - ❤️ **Health Checks** - Built-in endpoint for container monitoring
 
@@ -159,12 +160,21 @@ This mounts your local `public/` and `server/` directories into the container, s
    - Enter custom watermark text (defaults to "DRAFT")
    - Watermarks appear diagonally across each page
 
-4. **Click "Convert to PDF"**
+4. **Configure custom Lua filter (optional)**:
+   - Expand the "Custom Lua Filter" section
+   - Enter a filter name and Lua filter code
+   - Choose filter mode:
+     - **Override default filter**: Use only your custom filter
+     - **In addition to default filter**: Apply both default and custom filters
+   - Click "Save Filter" to persist your configuration
+   - Toggle "Use custom filter" to enable/disable it for conversions
+
+5. **Click "Convert to PDF"**
    - The conversion happens on the server
    - Your browser will download the PDF automatically
    - The PDF has the same base filename as your Markdown file
 
-5. **Open the PDF** in your favorite PDF viewer
+6. **Open the PDF** in your favorite PDF viewer
 
 ### Example Use Case
 
@@ -368,6 +378,110 @@ curl http://localhost:8080/healthz
 # Returns: {"ok":true}
 ```
 
+### Filter Management API
+
+The application provides endpoints for managing custom Lua filters that can be used to customize Pandoc's conversion behavior.
+
+#### GET `/api/filter/default` - Get Default Filter
+
+**Endpoint**: `http://localhost:8080/api/filter/default`
+
+**Purpose**: Retrieve the default Lua filter code used by the application
+
+**Response**:
+- `200` (`text/plain`) - Returns the Lua filter code as plain text
+- Rate limited to 20 requests per minute per IP
+
+**Example**:
+```bash
+curl http://localhost:8080/api/filter/default
+# Returns the default filter.lua content
+```
+
+#### GET `/api/filter/custom` - Get Custom Filter
+
+**Endpoint**: `http://localhost:8080/api/filter/custom`
+
+**Purpose**: Retrieve the saved custom filter configuration and code
+
+**Response**:
+
+`200` (`application/json`)
+: Returns custom filter configuration:
+```json
+{
+  "name": "custom-filter",
+  "code": "-- Lua filter code here\nfunction Pandoc(doc)\n  return doc\nend",
+  "mode": "additional",
+  "enabled": true
+}
+```
+
+`200` (`application/json`)
+: Returns `{ "enabled": false }` if no custom filter is configured
+
+- Rate limited to 20 requests per minute per IP
+
+**Example**:
+```bash
+curl http://localhost:8080/api/filter/custom
+```
+
+#### POST `/api/filter/save` - Save Custom Filter
+
+**Endpoint**: `http://localhost:8080/api/filter/save`
+
+**Purpose**: Save or update a custom Lua filter configuration
+
+**Request Format**: `application/json`
+
+**Body Parameters**:
+
+`name`
+: **String** (✅ Required) - Filter name (sanitized for filename)
+
+`code`
+: **String** (✅ Required) - Lua filter code
+
+`mode`
+: **String** (Optional, default: `additional`) - Filter mode:
+  - `"override"` - Replace the default filter
+  - `"additional"` - Apply after the default filter
+
+`enabled`
+: **Boolean** (Optional, default: `true`) - Whether the filter is enabled
+
+**Response**:
+
+`200` (`application/json`)
+: Success:
+```json
+{
+  "success": true,
+  "name": "custom-filter"
+}
+```
+
+`400` (`application/json`)
+: Validation error: `{ "error": "message" }`
+
+`500` (`application/json`)
+: Server error: `{ "error": "message", "details": "..." }`
+
+- Rate limited to 20 requests per minute per IP
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/filter/save \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-custom-filter",
+    "code": "-- My custom filter\nfunction Pandoc(doc)\n  return doc\nend",
+    "mode": "additional",
+    "enabled": true
+  }'
+```
+
 ---
 
 ## ⚙️ Configuration Options
@@ -418,6 +532,8 @@ The application uses sensible defaults for PDF generation. These are configured 
 
 For advanced customization, you can override the default `filter.lua` and `watermark.tex` files by mounting your own versions into the container. This is useful for modifying conversion logic without rebuilding the Docker image.
 
+**Note**: The web UI also provides a "Custom Lua Filter" section where you can create, save, and manage custom filters without mounting files. Use the mounted file approach only if you want to change the system-wide default filter that's used as the base for all conversions.
+
 Create a directory on your host machine (e.g., `./my_assets`) and place your custom files inside:
 
 ```
@@ -447,7 +563,8 @@ chmod +r ./my_assets/*
 
 ### Special Features
 
-- **Line Breaks**: The included `filter.lua` filter is currently commented out and effectively empty. To use a Lua filter, you should map your own filter file to `/app/filter.lua` using Docker volumes (e.g., `- ./my_assets/filter.lua:/app/filter.lua`) and configure it as needed. Without this mapping, the default system won't process any filters (a commented-out Lua filter does nothing). 
+- **Custom Lua Filters**: Create and manage custom Pandoc Lua filters via the web UI or API. Filters can either override the default filter or be applied in addition to it. Filters are persisted on the server and can be enabled/disabled without losing configuration. Use the "Custom Lua Filter" section in the web interface to create filters that modify document structure, add custom processing, or implement advanced formatting rules.
+- **Default Filter**: The included `filter.lua` filter provides the base processing. You can override it via Docker volumes or use the web UI's custom filter feature with "override" mode. To modify the system-wide default, map your own filter file to `/app/filter.lua` using Docker volumes.
 - **Watermarks**: When enabled, injects `watermark.tex` which uses the LaTeX `draftwatermark` package
 
 ---
@@ -718,6 +835,7 @@ This application is designed for trusted environments. Security considerations:
 ✅ **Filename sanitization**: Special characters and path traversal attempts blocked  
 ✅ **Isolated temp directories**: Each request gets a unique temporary directory  
 ✅ **Cleanup**: Temporary files removed after PDF generation  
+✅ **Rate limiting**: API endpoints protected with rate limiting (20 requests/minute for filter endpoints, 5/minute for conversions)  
 
 ### Security Recommendations
 
@@ -733,7 +851,7 @@ This application is designed for trusted environments. Security considerations:
 
 ❌ Malicious LaTeX code injection (LaTeX can execute system commands)  
 ❌ Resource exhaustion from extremely complex documents  
-❌ Brute force attacks (no rate limiting by default)  
+❌ Malicious Lua filter code (custom filters have full access to document processing)  
 
 **Best Practice**: Treat this as an internal tool for trusted users, or add authentication and monitoring for production deployments.
 
@@ -741,31 +859,31 @@ This application is designed for trusted environments. Security considerations:
 
 ## 📚 Project Structure
 
-> pandoc-md2pdf-web/
-> > 🌐 Frontend (public/)
-> > > index.html          # Main web interface
-> > > style.css           # Styling and layout
-> > > app.js              # Upload logic and API calls
-> >
-> > ⚙️ Backend (server/)
-> > > index.js            # Express server, routes, Pandoc integration
-> > > package.json        # Node.js dependencies
-> > > fonts/              # Custom fonts (bundled in image)
-> > > tmp/                # Temporary upload directories
-> >
-> > 🔧 Conversion Scripts (server/scripts/)
-> > > convert_to_pdf.sh   # Shell wrapper for Pandoc
-> > > filter.lua      # Lua filter for line breaks
-> > > watermark.tex       # LaTeX watermark template
-> >
-> > 🐳 Docker Configuration
-> > > Dockerfile          # Container build
-> > > docker-compose.yml  # Production setup
-> > > docker-compose.override.yml  # Development overrides
-> >
-> > 📄 Documentation
-> > > README.md           # This comprehensive guide
-> > > LICENSE             # AGPL-3.0 license
+```
+pandoc-md2pdf-web/
+├── 🌐 Frontend (public/)
+│   ├── index.html          # Main web interface
+│   ├── style.css           # Styling and layout
+│   └── app.js              # Upload logic and API calls
+│
+├── ⚙️ Backend (server/)
+│   ├── index.js            # Express server, routes, Pandoc integration
+│   ├── package.json        # Node.js dependencies
+│   ├── fonts/              # Custom fonts (bundled in image)
+│   ├── scripts/            # Conversion scripts
+│   │   ├── filter.lua      # Lua filter for line breaks
+│   │   └── watermark.tex  # LaTeX watermark template
+│   └── tmp/                # Temporary upload directories
+│
+├── 🐳 Docker Configuration
+│   ├── Dockerfile          # Container build
+│   ├── docker-compose.yml  # Production setup
+│   └── docker-compose.override.yml  # Development overrides
+│
+└── 📄 Documentation
+    ├── README.md           # This comprehensive guide
+    └── LICENSE             # AGPL-3.0 license
+```
 
 ---
 

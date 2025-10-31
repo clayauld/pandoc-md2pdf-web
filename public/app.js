@@ -343,6 +343,7 @@
     const enabled = useCustomFilter.checked;
     const name = filterName.value.trim();
     const code = filterCode.value.trim();
+    const mode = filterModeOverride.checked ? 'override' : 'additional';
 
     if (enabled && (!name || !code)) {
       setFilterStatus('Please save the filter first before enabling it', true);
@@ -350,55 +351,27 @@
       return;
     }
 
-    // Fetch the saved config to preserve the last saved mode, not the current UI state
-    // This prevents accidentally saving an unsaved mode change when toggling the checkbox
-    let savedMode;
+    // Update the filter with all current UI settings
     try {
-      const customRes = await fetch('/api/filter/custom');
-      if (customRes.ok) {
-        const customData = await customRes.json();
-        if (customData.mode) {
-          savedMode = customData.mode; // Use the saved mode from server
-        } else {
-          // If no saved mode exists, fall back to current UI state
-          savedMode = filterModeOverride.checked ? 'override' : 'additional';
-        }
-      } else {
-        // If fetch fails, abort the update to prevent saving inconsistent state
-        console.error('Could not fetch saved filter mode:', customRes.status);
-        setFilterStatus('Error: Could not read saved filter settings. Please try again.', true);
-        useCustomFilter.checked = !enabled;
-        return; // Abort
-      }
-    } catch (err) {
-      // If fetching fails, abort the update to prevent saving inconsistent state
-      console.error('Could not fetch saved filter mode:', err);
-      setFilterStatus('Error: Could not read saved filter settings. Please try again.', true);
-      useCustomFilter.checked = !enabled;
-      return; // Abort
-    }
-
-    // Update only the enabled state, preserving the saved mode
-    try {
+      setFilterStatus(enabled ? 'Enabling filter...' : 'Disabling filter...');
       const res = await fetch('/api/filter/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, code, mode: savedMode, enabled }),
+        body: JSON.stringify({ name, code, mode, enabled }),
       });
 
       if (!res.ok) {
         const error = await res.json();
         setFilterStatus(error.error || 'Failed to update filter state', true);
-        useCustomFilter.checked = !enabled;
+        useCustomFilter.checked = !enabled; // Revert on failure
       } else {
         setFilterStatus(enabled ? 'Custom filter enabled' : 'Custom filter disabled');
-        // Keep the custom filter code visible even when disabled so users can see/edit it
       }
     } catch (err) {
       setFilterStatus('Error updating filter state: ' + (err.message || err), true);
-      useCustomFilter.checked = !enabled;
+      useCustomFilter.checked = !enabled; // Revert on failure
       console.error('Error updating filter state:', err);
     }
   }
