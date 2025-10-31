@@ -200,19 +200,27 @@ The application provides a REST API for programmatic access, perfect for automat
 
 **Parameters**:
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `file` | File | ✅ Yes | - | Your Markdown (`.md`) file |
-| `watermark` | Boolean | No | `false` | Enable watermark (`true` or `false`) |
-| `watermarkText` | String | No | `DRAFT` | Custom watermark text (only used if `watermark=true`) |
+**Parameters**:
+
+`file`
+: **File** (✅ Yes) - Your Markdown (`.md`) file
+
+`watermark`
+: **Boolean** (No, default: `false`) - Enable watermark (`true` or `false`)
+
+`watermarkText`
+: **String** (No, default: `DRAFT`) - Custom watermark text (only used if `watermark=true`)
 
 **Response**:
 
-| Status Code | Content-Type | Description |
-|-------------|--------------|-------------|
-| 200 | `application/pdf` | Successfully converted PDF file |
-| 400 | `application/json` | Missing or invalid file: `{ "error": "message" }` |
-| 500 | `application/json` | Conversion failed: `{ "error": "message", "details": "..." }` |
+`200` (`application/pdf`)
+: Successfully converted PDF file
+
+`400` (`application/json`)
+: Missing or invalid file: `{ "error": "message" }`
+
+`500` (`application/json`)
+: Conversion failed: `{ "error": "message", "details": "..." }`
 
 ### Examples
 
@@ -319,10 +327,11 @@ curl http://localhost:8080/healthz
 
 You can customize the application behavior using environment variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | Port the web server listens on |
-| `NODE_ENV` | `production` | Set to `development` for verbose logging |
+`PORT`
+: **Default**: `8080` - Port the web server listens on
+
+`NODE_ENV`
+: **Default**: `production` - Set to `development` for verbose logging
 
 **Example: Running on a different port**
 ```bash
@@ -333,15 +342,26 @@ docker run --rm -p 3000:3000 -e PORT=3000 ghcr.io/clayauld/pandoc-md2pdf-web:lat
 
 The application uses sensible defaults for PDF generation. These are configured in `server/index.js`:
 
-| Setting | Default Value | Description |
-|---------|---------------|-------------|
-| PDF Engine | `xelatex` | LaTeX engine (supports Unicode and modern fonts) |
-| Paper Size | `letter` | US Letter (8.5" × 11"). Change to `a4` for European standard |
-| Margins | `1in` | All sides have 1-inch margins |
-| Main Font | `Libertinus Serif` | Professional serif font for body text |
-| Mono Font | `Libertinus Mono` | Monospace font for code blocks |
-| Document Class | `article` | LaTeX document class |
-| Paragraph Spacing | `12pt` | Space between paragraphs |
+`PDF Engine`
+: **Default**: `xelatex` - LaTeX engine (supports Unicode and modern fonts)
+
+`Paper Size`
+: **Default**: `letter` - US Letter (8.5" × 11"). Change to `a4` for European standard
+
+`Margins`
+: **Default**: `1in` - All sides have 1-inch margins
+
+`Main Font`
+: **Default**: `Libertinus Serif` - Professional serif font for body text
+
+`Mono Font`
+: **Default**: `Libertinus Mono` - Monospace font for code blocks
+
+`Document Class`
+: **Default**: `article` - LaTeX document class
+
+`Paragraph Spacing`
+: **Default**: `12pt` - Space between paragraphs
 
 **Advanced**: To modify these settings, edit the Pandoc arguments in `server/index.js` and rebuild the image.
 
@@ -443,31 +463,29 @@ docker compose logs web | grep -i error
 
 ### Project Structure Explained
 
-```
-pandoc-md2pdf-web/
-├── public/                    # Frontend (single-page web UI)
-│   ├── index.html            # Main HTML page
-│   ├── style.css             # Styling
-│   └── app.js                # JavaScript for file upload & interaction
-│
-├── server/                    # Backend (Node.js/Express)
-│   ├── index.js              # Main server file, routes, Pandoc logic
-│   ├── package.json          # Node.js dependencies
-│   ├── fonts/                # Custom fonts (copied to container)
-│   │   └── OTF/              # OpenType fonts
-│   └── tmp/                  # Temporary upload directories (auto-created)
-│
-├── convert_to_pdf.sh         # Shell script for Pandoc conversion
-├── linebreaks.lua            # Lua filter for line break handling
-├── watermark.tex             # LaTeX template for watermarks
-│
-├── Dockerfile                # Container build instructions
-├── docker-compose.yml        # Production compose config
-├── docker-compose.override.yml # Development overrides (hot reload)
-│
-├── README.md                 # This file
-└── LICENSE                   # AGPL-3.0 license
-```
+> pandoc-md2pdf-web/
+> > public/                    # Frontend (single-page web UI)
+> > > index.html            # Main HTML page
+> > > style.css             # Styling
+> > > app.js                # JavaScript for file upload & interaction
+> >
+> > server/                    # Backend (Node.js/Express)
+> > > index.js              # Main server file, routes, Pandoc logic
+> > > package.json          # Node.js dependencies
+> > > fonts/                # Custom fonts (copied to container)
+> > > > OTF/              # OpenType fonts
+> > > tmp/                  # Temporary upload directories (auto-created)
+> >
+> > convert_to_pdf.sh         # Shell script for Pandoc conversion
+> > linebreaks.lua            # Lua filter for line break handling
+> > watermark.tex             # LaTeX template for watermarks
+> >
+> > Dockerfile                # Container build instructions
+> > docker-compose.yml        # Production compose config
+> > docker-compose.override.yml # Development overrides (hot reload)
+> >
+> > README.md                 # This file
+> > LICENSE                   # AGPL-3.0 license
 
 ### Technology Stack
 
@@ -642,34 +660,31 @@ This application is designed for trusted environments. Security considerations:
 
 ## 📚 Project Structure
 
-```
-pandoc-md2pdf-web/
-│
-├── 🌐 Frontend (public/)
-│   ├── index.html          # Main web interface
-│   ├── style.css           # Styling and layout
-│   └── app.js              # Upload logic and API calls
-│
-├── ⚙️ Backend (server/)
-│   ├── index.js            # Express server, routes, Pandoc integration
-│   ├── package.json        # Node.js dependencies
-│   ├── fonts/              # Custom fonts (bundled in image)
-│   └── tmp/                # Temporary upload directories
-│
-├── 🔧 Conversion Scripts
-│   ├── convert_to_pdf.sh   # Shell wrapper for Pandoc
-│   ├── linebreaks.lua      # Lua filter for line breaks
-│   └── watermark.tex       # LaTeX watermark template
-│
-├── 🐳 Docker Configuration
-│   ├── Dockerfile          # Container build
-│   ├── docker-compose.yml  # Production setup
-│   └── docker-compose.override.yml  # Development overrides
-│
-└── 📄 Documentation
-    ├── README.md           # This comprehensive guide
-    └── LICENSE             # AGPL-3.0 license
-```
+> pandoc-md2pdf-web/
+> > 🌐 Frontend (public/)
+> > > index.html          # Main web interface
+> > > style.css           # Styling and layout
+> > > app.js              # Upload logic and API calls
+> >
+> > ⚙️ Backend (server/)
+> > > index.js            # Express server, routes, Pandoc integration
+> > > package.json        # Node.js dependencies
+> > > fonts/              # Custom fonts (bundled in image)
+> > > tmp/                # Temporary upload directories
+> >
+> > 🔧 Conversion Scripts
+> > > convert_to_pdf.sh   # Shell wrapper for Pandoc
+> > > linebreaks.lua      # Lua filter for line breaks
+> > > watermark.tex       # LaTeX watermark template
+> >
+> > 🐳 Docker Configuration
+> > > Dockerfile          # Container build
+> > > docker-compose.yml  # Production setup
+> > > docker-compose.override.yml  # Development overrides
+> >
+> > 📄 Documentation
+> > > README.md           # This comprehensive guide
+> > > LICENSE             # AGPL-3.0 license
 
 ---
 
@@ -681,13 +696,13 @@ This project is licensed under the GNU Affero General Public License v3.0. See t
 
 ### What This Means
 
-- ✅ You can use this software freely
-- ✅ You can modify and redistribute it
-- ✅ You can use it commercially
-- ⚠️ If you modify and deploy this software (even as a web service), you must:
-  - Make your source code available
-  - License modifications under AGPL-3.0
-  - Provide a link to the source code to users
+*   **You can use this software freely**
+*   **You can modify and redistribute it**
+*   **You can use it commercially**
+*   **If you modify and deploy this software (even as a web service), you must**:
+    *   Make your source code available
+    *   License modifications under AGPL-3.0
+    *   Provide a link to the source code to users
 
 ### Contributing
 

@@ -399,11 +399,22 @@ if (HISTORY_EXPIRATION_MS > 0) {
         try {
             const toDelete = await saveHistory(h => {
                 const now = Date.now();
-                const expired = h.filter(item => item.expiresAt && item.expiresAt <= now);
-                if (expired.length > 0) {
-                    const toKeep = h.filter(item => !item.expiresAt || item.expiresAt > now);
-                    h.length = 0;
-                    h.push(...toKeep);
+                const expired = [];
+                let writeIndex = 0;
+                for (let readIndex = 0; readIndex < h.length; readIndex++) {
+                    const item = h[readIndex];
+                    if (item.expiresAt && item.expiresAt <= now) {
+                        expired.push(item);
+                    } else {
+                        if (writeIndex !== readIndex) {
+                            h[writeIndex] = item;
+                        }
+                        writeIndex++;
+                    }
+                }
+
+                if (writeIndex < h.length) {
+                    h.length = writeIndex;
                 }
                 return expired;
             });
