@@ -370,7 +370,9 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
 
     // Save filter file
     const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${sanitizedName}.lua`);
-    await fsp.writeFile(filterFilePath, code, 'utf8');
+    if (code) {
+      await fsp.writeFile(filterFilePath, code, 'utf8');
+    }
 
     // Save config
     const filterConfig = {
