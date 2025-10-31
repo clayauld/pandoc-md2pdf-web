@@ -20,6 +20,15 @@ const convertLimiter = rateLimit({
   message: 'Too many conversion requests from this IP, please try again later.',
 });
 
+// Rate limiter for filter endpoints: 20 requests per minute per IP
+const filterLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests for filter content from this IP, please try again later.',
+});
+
 require('dotenv').config();
 
 const app = express();
@@ -277,7 +286,7 @@ function runPandoc({ cwd, mdFileName, watermarkPath, customFilterPath, filterMod
 }
 
 // GET /api/filter/default - Get the default filter content
-app.get('/api/filter/default', async (req, res) => {
+app.get('/api/filter/default', filterLimiter, async (req, res) => {
   try {
     const defaultFilterPath = getDefaultFilterPath();
     let content = '';
