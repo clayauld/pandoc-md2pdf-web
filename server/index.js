@@ -349,8 +349,8 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return res.status(400).json({ error: 'Filter name is required' });
     }
-    if (!code || typeof code !== 'string') {
-      return res.status(400).json({ error: 'Filter code is required' });
+    if (!code || typeof code !== 'string' || code.trim() === '') {
+      return res.status(400).json({ error: 'Filter code is required and cannot be empty' });
     }
     if (mode && !['override', 'additional'].includes(mode)) {
       return res.status(400).json({ error: 'Filter mode must be "override" or "additional"' });
