@@ -176,6 +176,9 @@ function collapseUnderscores(name) {
 const CUSTOM_FILTER_DIR = path.join(__dirname, 'tmp', 'custom-filters');
 const CUSTOM_FILTER_CONFIG_FILE = path.join(CUSTOM_FILTER_DIR, '.config.json');
 
+// Promise chain to serialize filter save operations (prevents race conditions)
+let filterSaveChain = Promise.resolve();
+
 /**
  * Get the default filter.lua path
  * @returns {string} Path to the default filter
@@ -243,6 +246,24 @@ async function loadCustomFilterConfig() {
 async function saveCustomFilterConfig(config) {
   await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
   await fsp.writeFile(CUSTOM_FILTER_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+}
+
+/**
+ * Atomically performs a filter save operation, serializing all modifications
+ * to prevent race conditions. This function ensures that filter save operations
+ * execute one at a time, maintaining consistency between the config file and filter files.
+ * @param {function(): Promise<any>} saveFn A function that performs the filter save operation
+ * @returns {Promise<any>} A promise that resolves with the return value of saveFn
+ */
+async function saveCustomFilter(saveFn) {
+  const newSavePromise = filterSaveChain.catch((err) => {
+    // Log the error from the previous failed save, but allow the chain to continue
+    console.error('[saveCustomFilter] A previous filter save operation failed, but continuing. Error:', err);
+  }).then(async () => {
+    return await saveFn();
+  });
+  filterSaveChain = newSavePromise;
+  return newSavePromise;
 }
 
 function runPandoc({ cwd, mdFileName, watermarkPath, customFilterPath, filterMode }) {
@@ -369,88 +390,98 @@ app.get('/api/filter/custom', filterLimiter, async (req, res) => {
 // POST /api/filter/save - Save a custom filter
 app.post('/api/filter/save', filterLimiter, async (req, res) => {
   try {
-    const { name, code, mode, enabled } = req.body;
+    // Use saveCustomFilter to serialize this operation and prevent race conditions
+    await saveCustomFilter(async () => {
+      const { name, code, mode, enabled } = req.body;
 
-    // Validate enabled field type
-    if (enabled !== undefined && typeof enabled !== 'boolean') {
-      return res.status(400).json({ error: 'The `enabled` field must be a boolean if provided' });
-    }
+      // Validate enabled field type
+      if (enabled !== undefined && typeof enabled !== 'boolean') {
+        res.status(400).json({ error: 'The `enabled` field must be a boolean if provided' });
+        return;
+      }
 
-    // Validate mode if provided
-    if (mode && !['override', 'additional'].includes(mode)) {
-      return res.status(400).json({ error: 'Filter mode must be "override" or "additional"' });
-    }
+      // Validate mode if provided
+      if (mode && !['override', 'additional'].includes(mode)) {
+        res.status(400).json({ error: 'Filter mode must be "override" or "additional"' });
+        return;
+      }
 
-    // When disabling (enabled=false), allow empty name/code
-    // Load existing config to get the name if not provided
-    let sanitizedName = '';
-    let filterConfig = null;
+      // When disabling (enabled=false), allow empty name/code
+      // Load existing config to get the name if not provided
+      let sanitizedName = '';
+      let filterConfig = null;
 
-    if (enabled === false) {
-      // Disabling: allow empty name/code, load existing config if name not provided
-      if (name && typeof name === 'string' && name.trim() !== '') {
-        sanitizedName = sanitizeBaseName(name.trim());
-        if (!sanitizedName || sanitizedName.length === 0) {
-          return res.status(400).json({ error: 'Invalid filter name' });
+      if (enabled === false) {
+        // Disabling: allow empty name/code, load existing config if name not provided
+        if (name && typeof name === 'string' && name.trim() !== '') {
+          sanitizedName = sanitizeBaseName(name.trim());
+          if (!sanitizedName || sanitizedName.length === 0) {
+            res.status(400).json({ error: 'Invalid filter name' });
+            return;
+          }
+        } else {
+          // Load existing config to get the name
+          filterConfig = await loadCustomFilterConfig();
+          if (!filterConfig || !filterConfig.name) {
+            res.status(400).json({ error: 'No existing filter found to disable' });
+            return;
+          }
+          sanitizedName = filterConfig.name;
         }
       } else {
-        // Load existing config to get the name
+        // Enabling or creating: require name and code
+        if (!name || typeof name !== 'string' || name.trim() === '') {
+          res.status(400).json({ error: 'Filter name is required' });
+          return;
+        }
+        if (!code || typeof code !== 'string' || code.trim() === '') {
+          res.status(400).json({ error: 'Filter code is required and cannot be empty' });
+          return;
+        }
+        sanitizedName = sanitizeBaseName(name.trim());
+        if (!sanitizedName || sanitizedName.length === 0) {
+          res.status(400).json({ error: 'Invalid filter name' });
+          return;
+        }
+      }
+
+      // Load existing config if not already loaded
+      if (!filterConfig) {
         filterConfig = await loadCustomFilterConfig();
-        if (!filterConfig || !filterConfig.name) {
-          return res.status(400).json({ error: 'No existing filter found to disable' });
-        }
-        sanitizedName = filterConfig.name;
       }
-    } else {
-      // Enabling or creating: require name and code
-      if (!name || typeof name !== 'string' || name.trim() === '') {
-        return res.status(400).json({ error: 'Filter name is required' });
-      }
-      if (!code || typeof code !== 'string' || code.trim() === '') {
-        return res.status(400).json({ error: 'Filter code is required and cannot be empty' });
-      }
-      sanitizedName = sanitizeBaseName(name.trim());
-      if (!sanitizedName || sanitizedName.length === 0) {
-        return res.status(400).json({ error: 'Invalid filter name' });
-      }
-    }
 
-    // Load existing config if not already loaded
-    if (!filterConfig) {
-      filterConfig = await loadCustomFilterConfig();
-    }
-
-    // Create custom filter directory if it doesn't exist
-    // If the filter name is changing, delete the old file to prevent orphans
-    if (filterConfig?.name && filterConfig.name !== sanitizedName) {
-      const oldFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterConfig.name}.lua`);
-      try {
-        await fsp.unlink(oldFilterPath);
-      } catch (err) {
-        // It's okay if the file doesn't exist, but warn on other errors.
-        if (err.code !== 'ENOENT') {
-          console.warn(`Could not delete old filter file: ${oldFilterPath}`, err);
+      // Create custom filter directory if it doesn't exist
+      // If the filter name is changing, delete the old file to prevent orphans
+      if (filterConfig?.name && filterConfig.name !== sanitizedName) {
+        const oldFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterConfig.name}.lua`);
+        try {
+          await fsp.unlink(oldFilterPath);
+        } catch (err) {
+          // It's okay if the file doesn't exist, but warn on other errors.
+          if (err.code !== 'ENOENT') {
+            console.warn(`Could not delete old filter file: ${oldFilterPath}`, err);
+          }
         }
       }
-    }
 
-    await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
+      await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
 
-    // Save filter file (only if code is provided and non-empty)
-    const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${sanitizedName}.lua`);
-    if (code && typeof code === 'string' && code.trim() !== '') {
-      await fsp.writeFile(filterFilePath, code, 'utf8');
-    }
+      // Save filter file (only if code is provided and non-empty)
+      const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${sanitizedName}.lua`);
+      if (code && typeof code === 'string' && code.trim() !== '') {
+        await fsp.writeFile(filterFilePath, code, 'utf8');
+      }
 
-    // Save config
-    const updatedConfig = {
-      name: sanitizedName,
-      mode: mode || filterConfig?.mode || 'additional',
-      enabled: enabled !== undefined ? enabled : (filterConfig?.enabled !== undefined ? filterConfig.enabled : true)
-    };
-    await saveCustomFilterConfig(updatedConfig);
+      // Save config
+      const updatedConfig = {
+        name: sanitizedName,
+        mode: mode || filterConfig?.mode || 'additional',
+        enabled: enabled !== undefined ? enabled : (filterConfig?.enabled !== undefined ? filterConfig.enabled : true)
+      };
+      await saveCustomFilterConfig(updatedConfig);
 
-    res.json({ success: true, name: sanitizedName });
+      res.json({ success: true, name: sanitizedName });
+    });
   } catch (err) {
     console.error('Error saving custom filter:', err);
     res.status(500).json({ error: 'Failed to save custom filter', details: err.message });
