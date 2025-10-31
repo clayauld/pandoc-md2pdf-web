@@ -171,9 +171,26 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
     const outDir = path.join(cwd, 'pdf_output');
     const outFile = path.join(outDir, `${base}.pdf`);
 
+    // Determine the linebreaks.lua path: prefer /app/linebreaks.lua (Docker/override),
+    // fall back to cwd-relative for local development
+    let linebreaksPath = '/app/linebreaks.lua';
+    if (!fs.existsSync(linebreaksPath)) {
+      const cwdRelative = path.join(cwd, 'linebreaks.lua');
+      if (fs.existsSync(cwdRelative)) {
+        linebreaksPath = cwdRelative;
+      } else {
+        // Try project root relative to server directory
+        const projectRoot = path.join(__dirname, '..', 'linebreaks.lua');
+        if (fs.existsSync(projectRoot)) {
+          linebreaksPath = projectRoot;
+        }
+        // If none found, still use /app/linebreaks.lua and let pandoc handle the error
+      }
+    }
+
     const args = [
       inputPath,
-      '--lua-filter', '/app/linebreaks.lua',
+      '--lua-filter', linebreaksPath,
       '-o', outFile,
       '--pdf-engine=xelatex',
       '-V', 'geometry:margin=1in',

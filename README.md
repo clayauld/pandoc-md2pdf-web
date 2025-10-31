@@ -391,6 +391,11 @@ services:
 
 Restart the container (`docker compose up -d --force-recreate`) to apply the changes. The application will now use your local files for the conversion process.
 
+**Note**: Ensure that your mounted files have the correct permissions for the container to read them. If you encounter permission issues, make sure the files are readable:
+```bash
+chmod +r ./my_assets/*
+```
+
 ### Special Features
 
 - **Line Breaks**: The included `linebreaks.lua` filter converts HTML `<break>` tags in your Markdown to proper LaTeX line breaks
