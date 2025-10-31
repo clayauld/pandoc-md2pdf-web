@@ -227,11 +227,19 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
 
     if (watermark) {
       const staticWatermarkPath = '/app/watermark.tex';
+      let useStaticWatermark = false;
       try {
         await fsp.access(staticWatermarkPath, fs.constants.R_OK);
-        // If a static override exists, copy it to the working directory.
+        useStaticWatermark = true;
+      } catch {
+        // File doesn't exist or isn't accessible, which is fine. Fall back to dynamic generation.
+      }
+
+      if (useStaticWatermark) {
+        // If a static override exists, copy it. A failure here will be caught
+        // by the main endpoint handler and correctly fail the request.
         await fsp.copyFile(staticWatermarkPath, path.join(workDir, 'watermark.tex'));
-      } catch (err) {
+      } else {
         // Otherwise, generate the watermark dynamically based on user text.
         const escapeLatex = (s) => s
           .replace(/\\/g, '\\\\')
