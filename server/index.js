@@ -25,8 +25,46 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// In-memory history of recent conversions
-const history = [];
+// History of recent conversions
+const DB_FILE = path.join(__dirname, 'tmp', 'history.json');
+let history = [];
+
+async function loadHistory() {
+  try {
+    await fsp.mkdir(path.dirname(DB_FILE), { recursive: true });
+    const data = await fsp.readFile(DB_FILE, 'utf8');
+    history = JSON.parse(data);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      // History file doesn't exist yet, which is normal on first run.
+      return;
+    }
+    console.error('Error loading history:', err);
+  }
+}
+
+let saveChain = Promise.resolve();
+
+/**
+ * Atomically updates the history array and saves it to disk.
+ * This function serializes all history modifications to prevent race conditions.
+ * @param {function(Array): any} updateFn A function that mutates the history array.
+ * @returns {Promise<any>} A promise that resolves with the return value of updateFn.
+ */
+async function saveHistory(updateFn) {
+  const newSavePromise = saveChain.catch((err) => {
+    // Log the error from the previous failed save, but allow the chain to continue.
+    console.error('[saveHistory] A previous history save operation failed, but continuing. Error:', err);
+  }).then(async () => {
+    const result = updateFn(history);
+    await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
+    return result;
+  });
+  saveChain = newSavePromise;
+  return newSavePromise;
+}
+
+loadHistory().catch(err => console.error('Initialization failed:', err));
 
 function parseTtl(ttl) {
   if (!ttl) return 3600 * 1000; // Default: 1 hour
@@ -39,6 +77,7 @@ function parseTtl(ttl) {
     case 'h': return value * 3600 * 1000;
     case 'd': return value * 24 * 3600 * 1000;
     case 'w': return value * 7 * 24 * 3600 * 1000;
+    case 'M': return value * 30 * 24 * 3600 * 1000; // Approx. 30 days
     default: return 3600 * 1000;
   }
 }
@@ -237,14 +276,14 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
       }
     }
 
-    history.push({
+    await saveHistory(h => h.push({
         id,
         results,
         watermark,
         watermarkText: watermark ? watermarkText : undefined,
         expiresAt: HISTORY_EXPIRATION_MS > 0 ? Date.now() + HISTORY_EXPIRATION_MS : undefined,
         workDir,
-    });
+    }));
     res.json({ id, results });
 
   } catch (err) {
@@ -359,29 +398,40 @@ app.listen(PORT, () => {
 
 // Cleanup interval
 if (HISTORY_EXPIRATION_MS > 0) {
-    setInterval(() => {
-        const now = Date.now();
-        const toKeep = [];
-        const toDelete = [];
+    setInterval(async () => {
+        try {
+            const toDelete = await saveHistory(h => {
+                const now = Date.now();
+                const expired = [];
+                let writeIndex = 0;
+                for (let readIndex = 0; readIndex < h.length; readIndex++) {
+                    const item = h[readIndex];
+                    if (item.expiresAt && item.expiresAt <= now) {
+                        expired.push(item);
+                    } else {
+                        if (writeIndex !== readIndex) {
+                            h[writeIndex] = item;
+                        }
+                        writeIndex++;
+                    }
+                }
 
-        for (const h of history) {
-            if (h.expiresAt && h.expiresAt <= now) {
-                toDelete.push(h);
-            } else {
-                toKeep.push(h);
-            }
-        }
+                if (writeIndex < h.length) {
+                    h.length = writeIndex;
+                }
+                return expired;
+            });
 
-        if (toDelete.length > 0) {
-            console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
-            history.length = 0;
-            history.push(...toKeep);
-            // Also delete files from disk
-            for (const h of toDelete) {
-                fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
-                    console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
-                });
+            if (toDelete && toDelete.length > 0) {
+                console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
+                for (const h of toDelete) {
+                    fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
+                        console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
+                    });
+                }
             }
+        } catch (err) {
+            console.error('[cleanup] Cleanup job failed:', err);
         }
     }, 60000); // Run every minute
 }

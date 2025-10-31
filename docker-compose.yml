@@ -6,5 +6,7 @@ services:
     env_file:
       - server/.env
     restart: unless-stopped
+    volumes:
+      - ./app-data:/app/server/tmp
 
 
