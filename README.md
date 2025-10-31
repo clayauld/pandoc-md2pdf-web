@@ -444,10 +444,14 @@ curl http://localhost:8080/api/filter/custom
 **Body Parameters**:
 
 `name`
-: **String** (✅ Required) - Filter name (sanitized for filename)
+: **String** (Conditionally required) - Filter name (sanitized for filename)
+  - **Required** when `enabled` is `true` or not provided (creating/enabling a filter)
+  - **Optional** when `enabled` is `false` (will use existing filter name if omitted)
 
 `code`
-: **String** (✅ Required) - Lua filter code
+: **String** (Conditionally required) - Lua filter code
+  - **Required** when `enabled` is `true` or not provided (creating/enabling a filter)
+  - **Optional** when `enabled` is `false` (filter file won't be updated if omitted)
 
 `mode`
 : **String** (Optional, default: `additional`) - Filter mode:
@@ -476,7 +480,9 @@ curl http://localhost:8080/api/filter/custom
 
 - Rate limited to 20 requests per minute per IP
 
-**Example**:
+**Examples**:
+
+Creating or enabling a filter:
 ```bash
 curl -X POST http://localhost:8080/api/filter/save \
   -H "Content-Type: application/json" \
@@ -485,6 +491,15 @@ curl -X POST http://localhost:8080/api/filter/save \
     "code": "-- My custom filter\nfunction Pandoc(doc)\n  return doc\nend",
     "mode": "additional",
     "enabled": true
+  }'
+```
+
+Disabling a filter (name and code are optional):
+```bash
+curl -X POST http://localhost:8080/api/filter/save \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": false
   }'
 ```
 
