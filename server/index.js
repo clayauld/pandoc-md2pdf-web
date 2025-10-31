@@ -322,7 +322,8 @@ app.get('/api/filter/custom', async (req, res) => {
       code = await fsp.readFile(filterFilePath, 'utf8');
     } catch (err) {
       if (err.code === 'ENOENT') {
-        return res.json({ enabled: false });
+        console.error(`Custom filter file not found: ${filterFilePath}`);
+        return res.status(404).json({ error: `Custom filter file '${config.name}.lua' not found on server.` });
       }
       throw err;
     }
