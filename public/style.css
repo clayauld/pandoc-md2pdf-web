@@ -140,7 +140,20 @@ button[disabled] {
   background: #1f2937;
   cursor: not-allowed;
 }
+
+#submit {
+  margin-top: 20px;
+}
+
 .status { margin-top: 16px; min-height: 24px; color: #93c5fd; }
+
+.custom-options-heading {
+  margin-top: 32px;
+  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #e6edf3;
+}
 
 .filter-section {
   margin: 20px 0;

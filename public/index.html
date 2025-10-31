@@ -20,6 +20,11 @@
           <input id="file" name="files" type="file" accept=".md,text/markdown" multiple />
           <div id="file-list" class="file-list"></div>
         </div>
+        
+        <button id="submit" type="submit" disabled>Convert to PDF</button>
+        
+        <h2 class="custom-options-heading">Custom Options</h2>
+        
         <label class="opt">
           <input type="checkbox" id="watermark" name="watermark" />
           Apply watermark (uses watermark.tex)
@@ -62,8 +67,6 @@
             </div>
           </div>
         </details>
-        
-        <button id="submit" type="submit" disabled>Convert to PDF</button>
       </form>
 
       <div id="status" class="status"></div>
