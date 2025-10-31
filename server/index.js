@@ -54,7 +54,7 @@ let saveChain = Promise.resolve();
 async function saveHistory(updateFn) {
   const newSavePromise = saveChain.catch((err) => {
     // Log the error from the previous failed save, but allow the chain to continue.
-    console.error('A previous history save operation failed, but continuing. Error:', err);
+    console.error('[saveHistory] A previous history save operation failed, but continuing. Error:', err);
   }).then(async () => {
     const result = updateFn(history);
     await fsp.writeFile(DB_FILE, JSON.stringify(history, null, 2), 'utf8');
