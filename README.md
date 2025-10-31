@@ -543,29 +543,30 @@ docker compose logs web | grep -i error
 
 ### Project Structure Explained
 
-> pandoc-md2pdf-web/
-> > public/                    # Frontend (single-page web UI)
-> > > index.html            # Main HTML page
-> > > style.css             # Styling
-> > > app.js                # JavaScript for file upload & interaction
-> >
-> > server/                    # Backend (Node.js/Express)
-> > > index.js              # Main server file, routes, Pandoc logic
-> > > package.json          # Node.js dependencies
-> > > fonts/                # Custom fonts (copied to container)
-> > > scripts/              # Conversion scripts
-> > > > convert_to_pdf.sh   # Shell script for Pandoc conversion
-> > > > filter.lua            # Lua filter for line break handling
-> > > > watermark.tex             # LaTeX template for watermarks
-> > > > OTF/              # OpenType fonts
-> > > tmp/                  # Temporary upload directories (auto-created)
-> >
-> > Dockerfile                # Container build instructions
-> > docker-compose.yml        # Production compose config
-> > docker-compose.override.yml # Development overrides (hot reload)
-> >
-> > README.md                 # This file
-> > LICENSE                   # AGPL-3.0 license
+```
+pandoc-md2pdf-web/
+├── public/                     # Frontend (single-page web UI)
+│   ├── index.html              # Main HTML page
+│   ├── style.css               # Styling
+│   └── app.js                  # JavaScript for file upload & interaction
+│
+├── server/                     # Backend (Node.js/Express)
+│   ├── index.js                # Main server file, routes, Pandoc logic
+│   ├── package.json            # Node.js dependencies
+│   ├── fonts/                  # Custom fonts (copied to container)
+│   ├── scripts/                # Conversion scripts
+│   │   ├── convert_to_pdf.sh   # Shell script for Pandoc conversion
+│   │   ├── filter.lua          # Lua filter for line break handling
+│   │   ├── watermark.tex       # LaTeX template for watermarks
+│   │   └── OTF/                # OpenType fonts
+│   └── tmp/                    # Temporary upload directories (auto-created)
+│
+├── Dockerfile                  # Container build instructions
+├── docker-compose.yml          # Production compose config
+├── docker-compose.override.yml # Development overrides (hot reload)
+├── README.md                   # This file
+└── LICENSE                     # AGPL-3.0 license
+```
 
 ### Technology Stack
 
