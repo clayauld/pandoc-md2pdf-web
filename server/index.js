@@ -20,6 +20,15 @@ const convertLimiter = rateLimit({
   message: 'Too many conversion requests from this IP, please try again later.',
 });
 
+// Rate limiter for filter endpoints: 20 requests per minute per IP
+const filterLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests for filter content from this IP, please try again later.',
+});
+
 require('dotenv').config();
 
 const app = express();
@@ -84,6 +93,9 @@ function parseTtl(ttl) {
 
 // Time to keep history and files, in milliseconds.
 const HISTORY_EXPIRATION_MS = parseTtl(process.env.HISTORY_TTL);
+
+// JSON body parsing for API endpoints
+app.use(express.json());
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -160,7 +172,101 @@ function collapseUnderscores(name) {
   return out;
 }
 
-function runPandoc({ cwd, mdFileName, watermarkPath }) {
+// Custom filter directory path
+const CUSTOM_FILTER_DIR = path.join(__dirname, 'tmp', 'custom-filters');
+const CUSTOM_FILTER_CONFIG_FILE = path.join(CUSTOM_FILTER_DIR, '.config.json');
+
+// Promise chain to serialize filter save operations (prevents race conditions)
+let filterSaveChain = Promise.resolve();
+
+/**
+ * Get the default filter.lua path
+ * @returns {string} Path to the default filter
+ */
+function getDefaultFilterPath() {
+  // Determine the filter.lua path: prefer /app/filter.lua (Docker/override),
+  // fall back to server/scripts/filter.lua for local development
+  let linebreaksPath = '/app/filter.lua';
+  if (!fs.existsSync(linebreaksPath)) {
+    const scriptsPath = path.join(__dirname, 'scripts', 'filter.lua');
+    if (fs.existsSync(scriptsPath)) {
+      linebreaksPath = scriptsPath;
+    }
+    // If none found, still use /app/filter.lua and let pandoc handle the error
+  }
+  return linebreaksPath;
+}
+
+/**
+ * Load custom filter config from disk
+ * @returns {Promise<{name: string, mode: string, enabled: boolean} | null>}
+ */
+async function loadCustomFilterConfig() {
+  try {
+    const configData = await fsp.readFile(CUSTOM_FILTER_CONFIG_FILE, 'utf8');
+    const config = JSON.parse(configData);
+    
+    // Validate config structure
+    if (!config || typeof config !== 'object') {
+      console.warn(`Invalid config file format: expected object, got ${typeof config}`);
+      return null;
+    }
+    
+    // Validate required properties with correct types
+    if (typeof config.name !== 'string' || !config.name.trim()) {
+      console.warn('Invalid config: missing or invalid "name" property');
+      return null;
+    }
+    
+    if (typeof config.mode !== 'string' || (config.mode !== 'override' && config.mode !== 'additional')) {
+      console.warn('Invalid config: missing or invalid "mode" property (must be "override" or "additional")');
+      return null;
+    }
+    
+    if (typeof config.enabled !== 'boolean') {
+      console.warn('Invalid config: missing or invalid "enabled" property (must be boolean)');
+      return null;
+    }
+    
+    return config;
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return null;
+    }
+    // JSON parse errors or other errors
+    console.error('Error loading custom filter config:', err);
+    return null; // Return null instead of throwing to allow system to continue
+  }
+}
+
+/**
+ * Save custom filter config to disk
+ * @param {object} config - Config object with name, mode, enabled
+ */
+async function saveCustomFilterConfig(config) {
+  await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
+  await fsp.writeFile(CUSTOM_FILTER_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+}
+
+/**
+ * Atomically performs a filter save operation, serializing all modifications
+ * to prevent race conditions. This function ensures that filter save operations
+ * execute one at a time, maintaining consistency between the config file and filter files.
+ * @param {function(): Promise<any>} saveFn A function that performs the filter save operation
+ * @returns {Promise<any>} A promise that resolves with the return value of saveFn
+ */
+async function saveCustomFilter(saveFn) {
+  const newSavePromise = filterSaveChain.catch((err) => {
+    // Log the error from the previous failed save, but allow the chain to continue
+    console.error('[saveCustomFilter] A previous filter save operation failed, but continuing. Error:', err);
+  }).then(async () => {
+    return await saveFn();
+  });
+  filterSaveChain = newSavePromise;
+  return newSavePromise;
+}
+
+function runPandoc({ cwd, mdFileName, watermarkPath, customFilterPath, filterMode }) {
   return new Promise((resolve, reject) => {
     const inputPath = path.join(cwd, mdFileName);
     let baseRaw = mdFileName;
@@ -171,26 +277,24 @@ function runPandoc({ cwd, mdFileName, watermarkPath }) {
     const outDir = path.join(cwd, 'pdf_output');
     const outFile = path.join(outDir, `${base}.pdf`);
 
-    // Determine the filter.lua path: prefer /app/filter.lua (Docker/override),
-    // fall back to server/scripts/filter.lua for local development
-    let linebreaksPath = '/app/filter.lua';
-    if (!fs.existsSync(linebreaksPath)) {
-      const cwdRelative = path.join(cwd, 'filter.lua');
-      if (fs.existsSync(cwdRelative)) {
-        linebreaksPath = cwdRelative;
-      } else {
-        // Try server/scripts/filter.lua for local development
-        const scriptsPath = path.join(__dirname, 'scripts', 'filter.lua');
-        if (fs.existsSync(scriptsPath)) {
-          linebreaksPath = scriptsPath;
-        }
-        // If none found, still use /app/filter.lua and let pandoc handle the error
+    const args = [inputPath];
+
+    // Handle filter logic based on custom filter mode
+    if (customFilterPath && filterMode === 'override') {
+      // Override mode: use only custom filter, skip default
+      args.push('--lua-filter', customFilterPath);
+    } else {
+      // For all other cases, the default filter is included.
+      const defaultFilterPath = getDefaultFilterPath();
+      args.push('--lua-filter', defaultFilterPath);
+
+      // If in 'additional' mode, add the custom filter after the default one.
+      if (customFilterPath && filterMode === 'additional') {
+        args.push('--lua-filter', customFilterPath);
       }
     }
 
-    const args = [
-      inputPath,
-      '--lua-filter', linebreaksPath,
+    args.push(
       '-o', outFile,
       '--pdf-engine=xelatex',
       '-V', 'geometry:margin=1in',
@@ -199,7 +303,7 @@ function runPandoc({ cwd, mdFileName, watermarkPath }) {
       '-V', 'monofont=Libertinus Mono',
       '--variable=documentclass:article',
       '--variable=parskip:12pt',
-    ];
+    );
 
     if (watermarkPath) {
       args.push('-H', watermarkPath);
@@ -228,6 +332,162 @@ function runPandoc({ cwd, mdFileName, watermarkPath }) {
   });
 }
 
+// GET /api/filter/default - Get the default filter content
+app.get('/api/filter/default', filterLimiter, async (req, res) => {
+  try {
+    const defaultFilterPath = getDefaultFilterPath();
+    let content = '';
+    try {
+      content = await fsp.readFile(defaultFilterPath, 'utf8');
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        throw err;
+      }
+      // File doesn't exist, return empty string
+    }
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(content);
+  } catch (err) {
+    console.error('Error reading default filter:', err);
+    res.status(500).json({ error: 'Failed to read default filter', details: err.message });
+  }
+});
+
+// GET /api/filter/custom - Get the custom filter config and content
+app.get('/api/filter/custom', filterLimiter, async (req, res) => {
+  try {
+    const config = await loadCustomFilterConfig();
+    if (!config) {
+      return res.json({ enabled: false });
+    }
+
+    // Load the filter code
+    const filterFileName = sanitizeBaseName(config.name);
+    const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${filterFileName}.lua`);
+    let code = '';
+    try {
+      code = await fsp.readFile(filterFilePath, 'utf8');
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        console.error(`Custom filter file not found: ${filterFilePath}`);
+        return res.status(404).json({ error: `Custom filter file '${config.name}.lua' not found on server.` });
+      }
+      throw err;
+    }
+
+    res.json({
+      name: config.name,
+      code: code,
+      mode: config.mode,
+      enabled: config.enabled || false
+    });
+  } catch (err) {
+    console.error('Error reading custom filter:', err);
+    res.status(500).json({ error: 'Failed to read custom filter', details: err.message });
+  }
+});
+
+// POST /api/filter/save - Save a custom filter
+app.post('/api/filter/save', filterLimiter, async (req, res) => {
+  try {
+    // Use saveCustomFilter to serialize this operation and prevent race conditions
+    await saveCustomFilter(async () => {
+      const { name, code, mode, enabled } = req.body;
+
+      // Validate enabled field type
+      if (enabled !== undefined && typeof enabled !== 'boolean') {
+        res.status(400).json({ error: 'The `enabled` field must be a boolean if provided' });
+        return;
+      }
+
+      // Validate mode if provided
+      if (mode && !['override', 'additional'].includes(mode)) {
+        res.status(400).json({ error: 'Filter mode must be "override" or "additional"' });
+        return;
+      }
+
+      // When disabling (enabled=false), allow empty name/code
+      // Load existing config to get the name if not provided
+      let sanitizedName = '';
+      let filterConfig = null;
+
+      if (enabled === false) {
+        // Disabling: allow empty name/code, load existing config if name not provided
+        if (name && typeof name === 'string' && name.trim() !== '') {
+          sanitizedName = sanitizeBaseName(name.trim());
+          if (!sanitizedName || sanitizedName.length === 0) {
+            res.status(400).json({ error: 'Invalid filter name' });
+            return;
+          }
+        } else {
+          // Load existing config to get the name
+          filterConfig = await loadCustomFilterConfig();
+          if (!filterConfig || !filterConfig.name) {
+            res.status(400).json({ error: 'No existing filter found to disable' });
+            return;
+          }
+          sanitizedName = filterConfig.name;
+        }
+      } else {
+        // Enabling or creating: require name and code
+        if (!name || typeof name !== 'string' || name.trim() === '') {
+          res.status(400).json({ error: 'Filter name is required' });
+          return;
+        }
+        if (!code || typeof code !== 'string' || code.trim() === '') {
+          res.status(400).json({ error: 'Filter code is required and cannot be empty' });
+          return;
+        }
+        sanitizedName = sanitizeBaseName(name.trim());
+        if (!sanitizedName || sanitizedName.length === 0) {
+          res.status(400).json({ error: 'Invalid filter name' });
+          return;
+        }
+      }
+
+      // Load existing config if not already loaded
+      if (!filterConfig) {
+        filterConfig = await loadCustomFilterConfig();
+      }
+
+      // Create custom filter directory if it doesn't exist
+      // If the filter name is changing, delete the old file to prevent orphans
+      if (filterConfig?.name && filterConfig.name !== sanitizedName) {
+        const oldFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterConfig.name}.lua`);
+        try {
+          await fsp.unlink(oldFilterPath);
+        } catch (err) {
+          // It's okay if the file doesn't exist, but warn on other errors.
+          if (err.code !== 'ENOENT') {
+            console.warn(`Could not delete old filter file: ${oldFilterPath}`, err);
+          }
+        }
+      }
+
+      await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
+
+      // Save filter file (only if code is provided and non-empty)
+      const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${sanitizedName}.lua`);
+      if (code && typeof code === 'string' && code.trim() !== '') {
+        await fsp.writeFile(filterFilePath, code, 'utf8');
+      }
+
+      // Save config
+      const updatedConfig = {
+        name: sanitizedName,
+        mode: mode || filterConfig?.mode || 'additional',
+        enabled: enabled !== undefined ? enabled : (filterConfig?.enabled !== undefined ? filterConfig.enabled : true)
+      };
+      await saveCustomFilterConfig(updatedConfig);
+
+      res.json({ success: true, name: sanitizedName });
+    });
+  } catch (err) {
+    console.error('Error saving custom filter:', err);
+    res.status(500).json({ error: 'Failed to save custom filter', details: err.message });
+  }
+});
+
 app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => {
   const watermark = String(req.body?.watermark || '').toLowerCase() === 'true';
   const rawWatermarkText = String(req.body?.watermarkText || '');
@@ -239,9 +499,30 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
   const id = nanoid(10);
   const workDir = path.join(__dirname, 'tmp', id);
   let watermarkPath = null;
+  let customFilterPath = null;
+  let filterMode = null;
 
   try {
     await fsp.mkdir(workDir, { recursive: true });
+
+    // Check for custom filter
+    const customFilterConfig = await loadCustomFilterConfig();
+    if (customFilterConfig && customFilterConfig.enabled) {
+      const filterFileName = sanitizeBaseName(customFilterConfig.name);
+      const savedFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterFileName}.lua`);
+      
+      // Verify filter file exists and use it directly (no need to copy to work directory)
+      try {
+        await fsp.access(savedFilterPath, fs.constants.R_OK);
+        customFilterPath = savedFilterPath;
+        filterMode = customFilterConfig.mode || 'additional';
+      } catch (err) {
+        console.error(`Error applying custom filter '${customFilterConfig.name}':`, err);
+        // Re-throw the error to be caught by the main handler,
+        // which will fail the request and notify the user.
+        throw new Error(`Failed to apply custom filter '${customFilterConfig.name}'.`);
+      }
+    }
 
     if (watermark) {
       // Use /tmp for watermark.tex to avoid persisting it to the mounted volume
@@ -294,7 +575,13 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         const mdPath = path.join(workDir, mdName);
         await fsp.writeFile(mdPath, file.buffer);
 
-        const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, watermarkPath });
+        const pdfPath = await runPandoc({ 
+          cwd: workDir, 
+          mdFileName: mdName, 
+          watermarkPath,
+          customFilterPath,
+          filterMode
+        });
         results.push({
             name: path.basename(pdfPath),
             originalName: file.originalname,

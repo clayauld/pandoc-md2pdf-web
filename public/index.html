@@ -20,6 +20,11 @@
           <input id="file" name="files" type="file" accept=".md,text/markdown" multiple />
           <div id="file-list" class="file-list"></div>
         </div>
+        
+        <button id="submit" type="submit" disabled>Convert to PDF</button>
+        
+        <h2 class="custom-options-heading">Custom Options</h2>
+        
         <label class="opt">
           <input type="checkbox" id="watermark" name="watermark" />
           Apply watermark (uses watermark.tex)
@@ -28,7 +33,40 @@
           Watermark text
           <input type="text" id="watermarkText" name="watermarkText" placeholder="DRAFT" disabled />
         </label>
-        <button id="submit" type="submit" disabled>Convert to PDF</button>
+        
+        <details class="filter-section">
+          <summary class="filter-summary">Custom Lua Filter</summary>
+          <div class="filter-content">
+            <label class="opt">
+              <input type="checkbox" id="useCustomFilter" />
+              Use custom filter
+            </label>
+            <label class="opt">
+              Filter name
+              <input type="text" id="filterName" placeholder="custom-filter" />
+            </label>
+            <div class="opt filter-mode">
+              <label>
+                <input type="radio" name="filterMode" value="override" />
+                Override default filter
+              </label>
+              <label>
+                <input type="radio" name="filterMode" value="additional" checked />
+                In addition to default filter
+              </label>
+            </div>
+            <label class="opt">
+              Filter code
+              <textarea id="filterCode" class="filter-code" rows="10" placeholder="-- Your Lua filter code here"></textarea>
+            </label>
+            <button type="button" id="saveFilter" class="button-secondary">Save Filter</button>
+            <div id="filterStatus" class="filter-status"></div>
+            <div id="savedFilterDisplay" class="saved-filter-display" style="display: none;">
+              <h4 id="savedFilterName"></h4>
+              <pre id="savedFilterCode" class="saved-filter-code"></pre>
+            </div>
+          </div>
+        </details>
       </form>
 
       <div id="status" class="status"></div>

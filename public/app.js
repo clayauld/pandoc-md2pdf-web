@@ -9,6 +9,16 @@
   const history = document.getElementById('history');
   const watermark = document.getElementById('watermark');
   const watermarkText = document.getElementById('watermarkText');
+  const useCustomFilter = document.getElementById('useCustomFilter');
+  const filterName = document.getElementById('filterName');
+  const filterCode = document.getElementById('filterCode');
+  const filterModeOverride = document.querySelector('input[name="filterMode"][value="override"]');
+  const filterModeAdditional = document.querySelector('input[name="filterMode"][value="additional"]');
+  const saveFilterBtn = document.getElementById('saveFilter');
+  const filterStatus = document.getElementById('filterStatus');
+  const savedFilterDisplay = document.getElementById('savedFilterDisplay');
+  const savedFilterName = document.getElementById('savedFilterName');
+  const savedFilterCode = document.getElementById('savedFilterCode');
 
   let selectedFiles = [];
 
@@ -236,6 +246,163 @@
   }
 
   loadHistory();
+
+  // Filter management functions
+  function setFilterStatus(msg, isError = false) {
+    filterStatus.textContent = msg || '';
+    filterStatus.style.color = isError ? '#ef4444' : '#93c5fd';
+  }
+
+  function updateSavedFilterDisplay(name, code) {
+    if (name && code) {
+      savedFilterName.textContent = name;
+      savedFilterCode.textContent = code;
+      savedFilterDisplay.style.display = 'block';
+    } else {
+      savedFilterDisplay.style.display = 'none';
+    }
+  }
+
+  async function loadDefaultFilter() {
+    try {
+      const res = await fetch('/api/filter/default');
+      if (res.ok) {
+        const code = await res.text();
+        if (!filterCode.value || filterCode.value.trim() === '') {
+          filterCode.value = code;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load default filter:', err);
+    }
+  }
+
+  async function loadCustomFilter() {
+    try {
+      const res = await fetch('/api/filter/custom');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name && data.code) {
+          // Custom filter exists (enabled or disabled)
+          filterName.value = data.name;
+          filterCode.value = data.code;
+          useCustomFilter.checked = data.enabled || false;
+          if (data.mode === 'override') {
+            filterModeOverride.checked = true;
+          } else {
+            filterModeAdditional.checked = true;
+          }
+          updateSavedFilterDisplay(data.name, data.code);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load custom filter:', err);
+    }
+  }
+
+  // Shared helper function for saving filters
+  async function saveFilterToServer(name, code, mode, enabled, options = {}) {
+    const { loadingMessage, successMessage, onSuccess, onError } = options;
+    
+    try {
+      if (loadingMessage) {
+        setFilterStatus(loadingMessage);
+      }
+      
+      const res = await fetch('/api/filter/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, code, mode, enabled }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (successMessage) {
+          const msg = typeof successMessage === 'function' ? successMessage(result) : successMessage;
+          setFilterStatus(msg);
+        }
+        if (onSuccess) {
+          onSuccess(result);
+        }
+        return { success: true, result };
+      } else {
+        const error = await res.json();
+        const errorMsg = error.error || 'Failed to save filter';
+        setFilterStatus(errorMsg, true);
+        if (onError) {
+          onError(error);
+        }
+        return { success: false, error: errorMsg };
+      }
+    } catch (err) {
+      const errorMsg = 'Error saving filter: ' + (err.message || err);
+      setFilterStatus(errorMsg, true);
+      console.error('Error saving filter:', err);
+      if (onError) {
+        onError(err);
+      }
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  async function handleSaveFilter() {
+    const name = filterName.value.trim();
+    const code = filterCode.value.trim();
+    const mode = filterModeOverride.checked ? 'override' : 'additional';
+    const enabled = useCustomFilter.checked;
+
+    if (!name) {
+      setFilterStatus('Filter name is required', true);
+      return;
+    }
+    if (enabled && !code) {
+      setFilterStatus('Filter code is required when the filter is enabled', true);
+      return;
+    }
+
+    await saveFilterToServer(name, code, mode, enabled, {
+      loadingMessage: 'Saving filter...',
+      successMessage: (result) => `Filter "${result.name}" saved successfully`,
+      onSuccess: (result) => {
+        updateSavedFilterDisplay(result.name, code);
+      }
+    });
+  }
+
+  async function updateFilterEnabled() {
+    const enabled = useCustomFilter.checked;
+    const name = filterName.value.trim();
+    const code = filterCode.value.trim();
+    const mode = filterModeOverride.checked ? 'override' : 'additional';
+
+    if (enabled && (!name || !code)) {
+      setFilterStatus('Please save the filter first before enabling it', true);
+      useCustomFilter.checked = false;
+      return;
+    }
+
+    const result = await saveFilterToServer(name, code, mode, enabled, {
+      loadingMessage: enabled ? 'Enabling filter...' : 'Disabling filter...',
+      successMessage: enabled ? 'Custom filter enabled' : 'Custom filter disabled',
+      onError: () => {
+        useCustomFilter.checked = !enabled; // Revert on failure
+      }
+    });
+  }
+
+  // Event listeners for filter management
+  saveFilterBtn.addEventListener('click', handleSaveFilter);
+  useCustomFilter.addEventListener('change', updateFilterEnabled);
+
+  // Load filters on page load
+  (async () => {
+    // Load default filter first
+    await loadDefaultFilter();
+    // Then load custom filter if it exists (it will override the default in the textarea)
+    await loadCustomFilter();
+  })();
 })();
 
 
