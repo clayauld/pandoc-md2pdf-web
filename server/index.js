@@ -351,8 +351,11 @@ app.post('/api/filter/save', async (req, res) => {
     if (!code || typeof code !== 'string') {
       return res.status(400).json({ error: 'Filter code is required' });
     }
-    if (mode && mode !== 'override' && mode !== 'additional') {
+    if (mode && !['override', 'additional'].includes(mode)) {
       return res.status(400).json({ error: 'Filter mode must be "override" or "additional"' });
+    }
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'The `enabled` field must be a boolean if provided' });
     }
 
     // Sanitize filename
