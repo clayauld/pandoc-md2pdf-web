@@ -357,8 +357,8 @@
       setFilterStatus('Filter name is required', true);
       return;
     }
-    if (!code) {
-      setFilterStatus('Filter code is required', true);
+    if (enabled && !code) {
+      setFilterStatus('Filter code is required when the filter is enabled', true);
       return;
     }
 
