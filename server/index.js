@@ -201,12 +201,38 @@ function getDefaultFilterPath() {
 async function loadCustomFilterConfig() {
   try {
     const configData = await fsp.readFile(CUSTOM_FILTER_CONFIG_FILE, 'utf8');
-    return JSON.parse(configData);
+    const config = JSON.parse(configData);
+    
+    // Validate config structure
+    if (!config || typeof config !== 'object') {
+      console.warn(`Invalid config file format: expected object, got ${typeof config}`);
+      return null;
+    }
+    
+    // Validate required properties with correct types
+    if (typeof config.name !== 'string' || !config.name.trim()) {
+      console.warn('Invalid config: missing or invalid "name" property');
+      return null;
+    }
+    
+    if (typeof config.mode !== 'string' || (config.mode !== 'override' && config.mode !== 'additional')) {
+      console.warn('Invalid config: missing or invalid "mode" property (must be "override" or "additional")');
+      return null;
+    }
+    
+    if (typeof config.enabled !== 'boolean') {
+      console.warn('Invalid config: missing or invalid "enabled" property (must be boolean)');
+      return null;
+    }
+    
+    return config;
   } catch (err) {
     if (err.code === 'ENOENT') {
       return null;
     }
-    throw err;
+    // JSON parse errors or other errors
+    console.error('Error loading custom filter config:', err);
+    return null; // Return null instead of throwing to allow system to continue
   }
 }
 

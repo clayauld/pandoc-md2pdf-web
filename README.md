@@ -407,7 +407,9 @@ curl http://localhost:8080/api/filter/default
 **Response**:
 
 `200` (`application/json`)
-: Returns custom filter configuration:
+: Returns the custom filter configuration.
+
+If a custom filter is configured, it returns an object with its details:
 ```json
 {
   "name": "custom-filter",
@@ -417,8 +419,12 @@ curl http://localhost:8080/api/filter/default
 }
 ```
 
-`200` (`application/json`)
-: Returns `{ "enabled": false }` if no custom filter is configured
+If no custom filter is configured, it returns:
+```json
+{
+  "enabled": false
+}
+```
 
 - Rate limited to 20 requests per minute per IP
 
@@ -871,6 +877,7 @@ pandoc-md2pdf-web/
 │   ├── package.json        # Node.js dependencies
 │   ├── fonts/              # Custom fonts (bundled in image)
 │   ├── scripts/            # Conversion scripts
+│   │   ├── convert_to_pdf.sh   # Shell wrapper for Pandoc
 │   │   ├── filter.lua      # Lua filter for line breaks
 │   │   └── watermark.tex  # LaTeX watermark template
 │   └── tmp/                # Temporary upload directories
