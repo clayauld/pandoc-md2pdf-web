@@ -570,7 +570,7 @@ chmod +r ./my_assets/*
 ### Special Features
 
 - **Custom Lua Filters**: Create and manage custom Pandoc Lua filters via the web UI or API. Filters can either override the default filter or be applied in addition to it. Filters are persisted on the server and can be enabled/disabled without losing configuration. Use the "Custom Lua Filter" section in the web interface to create filters that modify document structure, add custom processing, or implement advanced formatting rules.
-- **Default Filter**: The included `filter.lua` filter provides the base processing. You can override it via Docker volumes or use the web UI's custom filter feature with "override" mode. To modify the system-wide default, map your own filter file to `/app/filter.lua` using Docker volumes.
+- **Default Filter**: The included `filter.lua` file is currently empty (contains only commented-out code) and does not perform any processing by default. See [Overriding Conversion Assets](#overriding-conversion-assets) for details on overriding it via Docker volumes, or use the web UI's custom filter feature with "override" mode to replace it on a per-request basis.
 - **Watermarks**: When enabled, injects `watermark.tex` which uses the LaTeX `draftwatermark` package
 
 ---
@@ -662,33 +662,6 @@ docker compose logs -f web
 **View only errors**:
 ```bash
 docker compose logs web | grep -i error
-```
-
-### Project Structure Explained
-
-```
-pandoc-md2pdf-web/
-├── public/                     # Frontend (single-page web UI)
-│   ├── index.html              # Main HTML page
-│   ├── style.css               # Styling
-│   └── app.js                  # JavaScript for file upload & interaction
-│
-├── server/                     # Backend (Node.js/Express)
-│   ├── index.js                # Main server file, routes, Pandoc logic
-│   ├── package.json            # Node.js dependencies
-│   ├── fonts/                  # Custom fonts (copied to container)
-│   ├── scripts/                # Conversion scripts
-│   │   ├── convert_to_pdf.sh   # Shell script for Pandoc conversion
-│   │   ├── filter.lua          # Lua filter for line break handling
-│   │   ├── watermark.tex       # LaTeX template for watermarks
-│   │   └── OTF/                # OpenType fonts
-│   └── tmp/                    # Temporary upload directories (auto-created)
-│
-├── Dockerfile                  # Container build instructions
-├── docker-compose.yml          # Production compose config
-├── docker-compose.override.yml # Development overrides (hot reload)
-├── README.md                   # This file
-└── LICENSE                     # AGPL-3.0 license
 ```
 
 ### Technology Stack
@@ -868,28 +841,28 @@ This application is designed for trusted environments. Security considerations:
 ```
 pandoc-md2pdf-web/
 ├── 🌐 Frontend (public/)
-│   ├── index.html          # Main web interface
-│   ├── style.css           # Styling and layout
-│   └── app.js              # Upload logic and API calls
+│   ├── index.html                   # Main web interface
+│   ├── style.css                    # Styling and layout
+│   └── app.js                       # Upload logic and API calls
 │
 ├── ⚙️ Backend (server/)
-│   ├── index.js            # Express server, routes, Pandoc integration
-│   ├── package.json        # Node.js dependencies
-│   ├── fonts/              # Custom fonts (bundled in image)
-│   ├── scripts/            # Conversion scripts
-│   │   ├── convert_to_pdf.sh   # Shell wrapper for Pandoc
-│   │   ├── filter.lua      # Lua filter for line breaks
-│   │   └── watermark.tex  # LaTeX watermark template
-│   └── tmp/                # Temporary upload directories
+│   ├── index.js                     # Express server, routes, Pandoc integration
+│   ├── package.json                 # Node.js dependencies
+│   ├── fonts/                       # Custom fonts (bundled in image, may contain OTF/ subdirectory)
+│   ├── scripts/                     # Conversion scripts
+│   │   ├── convert_to_pdf.sh        # Shell wrapper for Pandoc
+│   │   ├── filter.lua               # Lua filter template (currently empty/commented out)
+│   │   └── watermark.tex            # LaTeX watermark template
+│   └── tmp/                         # Temporary upload directories (auto-created)
 │
 ├── 🐳 Docker Configuration
-│   ├── Dockerfile          # Container build
-│   ├── docker-compose.yml  # Production setup
+│   ├── Dockerfile                   # Container build
+│   ├── docker-compose.yml           # Production setup
 │   └── docker-compose.override.yml  # Development overrides
 │
 └── 📄 Documentation
-    ├── README.md           # This comprehensive guide
-    └── LICENSE             # AGPL-3.0 license
+    ├── README.md                    # This comprehensive guide
+    └── LICENSE                      # AGPL-3.0 license
 ```
 
 ---
