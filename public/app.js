@@ -352,18 +352,30 @@
 
     // Fetch the saved config to preserve the last saved mode, not the current UI state
     // This prevents accidentally saving an unsaved mode change when toggling the checkbox
-    let savedMode = filterModeOverride.checked ? 'override' : 'additional'; // fallback to current UI
+    let savedMode;
     try {
       const customRes = await fetch('/api/filter/custom');
       if (customRes.ok) {
         const customData = await customRes.json();
         if (customData.mode) {
           savedMode = customData.mode; // Use the saved mode from server
+        } else {
+          // If no saved mode exists, fall back to current UI state
+          savedMode = filterModeOverride.checked ? 'override' : 'additional';
         }
+      } else {
+        // If fetch fails, abort the update to prevent saving inconsistent state
+        console.error('Could not fetch saved filter mode:', customRes.status);
+        setFilterStatus('Error: Could not read saved filter settings. Please try again.', true);
+        useCustomFilter.checked = !enabled;
+        return; // Abort
       }
     } catch (err) {
-      // If fetching fails, fall back to current UI state (should be rare)
-      console.warn('Could not fetch saved filter mode, using UI state as fallback');
+      // If fetching fails, abort the update to prevent saving inconsistent state
+      console.error('Could not fetch saved filter mode:', err);
+      setFilterStatus('Error: Could not read saved filter settings. Please try again.', true);
+      useCustomFilter.checked = !enabled;
+      return; // Abort
     }
 
     // Update only the enabled state, preserving the saved mode
