@@ -444,10 +444,10 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         await fsp.copyFile(savedFilterPath, customFilterPath);
         filterMode = customFilterConfig.mode || 'additional';
       } catch (err) {
-        console.error('Error copying custom filter:', err);
-        // Continue without custom filter if copy fails
-        customFilterPath = null;
-        filterMode = null;
+        console.error(`Error applying custom filter '${customFilterConfig.name}':`, err);
+        // Re-throw the error to be caught by the main handler,
+        // which will fail the request and notify the user.
+        throw new Error(`Failed to apply custom filter '${customFilterConfig.name}'.`);
       }
     }
 
