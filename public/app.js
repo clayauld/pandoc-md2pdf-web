@@ -300,6 +300,53 @@
     }
   }
 
+  // Shared helper function for saving filters
+  async function saveFilterToServer(name, code, mode, enabled, options = {}) {
+    const { loadingMessage, successMessage, onSuccess, onError } = options;
+    
+    try {
+      if (loadingMessage) {
+        setFilterStatus(loadingMessage);
+      }
+      
+      const res = await fetch('/api/filter/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, code, mode, enabled }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (successMessage) {
+          const msg = typeof successMessage === 'function' ? successMessage(result) : successMessage;
+          setFilterStatus(msg);
+        }
+        if (onSuccess) {
+          onSuccess(result);
+        }
+        return { success: true, result };
+      } else {
+        const error = await res.json();
+        const errorMsg = error.error || 'Failed to save filter';
+        setFilterStatus(errorMsg, true);
+        if (onError) {
+          onError(error);
+        }
+        return { success: false, error: errorMsg };
+      }
+    } catch (err) {
+      const errorMsg = 'Error saving filter: ' + (err.message || err);
+      setFilterStatus(errorMsg, true);
+      console.error('Error saving filter:', err);
+      if (onError) {
+        onError(err);
+      }
+      return { success: false, error: errorMsg };
+    }
+  }
+
   async function handleSaveFilter() {
     const name = filterName.value.trim();
     const code = filterCode.value.trim();
@@ -315,28 +362,13 @@
       return;
     }
 
-    try {
-      setFilterStatus('Saving filter...');
-      const res = await fetch('/api/filter/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, code, mode, enabled }),
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        setFilterStatus(`Filter "${result.name}" saved successfully`);
+    await saveFilterToServer(name, code, mode, enabled, {
+      loadingMessage: 'Saving filter...',
+      successMessage: (result) => `Filter "${result.name}" saved successfully`,
+      onSuccess: (result) => {
         updateSavedFilterDisplay(result.name, code);
-      } else {
-        const error = await res.json();
-        setFilterStatus(error.error || 'Failed to save filter', true);
       }
-    } catch (err) {
-      setFilterStatus('Error saving filter: ' + (err.message || err), true);
-      console.error('Error saving filter:', err);
-    }
+    });
   }
 
   async function updateFilterEnabled() {
@@ -351,29 +383,13 @@
       return;
     }
 
-    // Update the filter with all current UI settings
-    try {
-      setFilterStatus(enabled ? 'Enabling filter...' : 'Disabling filter...');
-      const res = await fetch('/api/filter/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, code, mode, enabled }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        setFilterStatus(error.error || 'Failed to update filter state', true);
+    const result = await saveFilterToServer(name, code, mode, enabled, {
+      loadingMessage: enabled ? 'Enabling filter...' : 'Disabling filter...',
+      successMessage: enabled ? 'Custom filter enabled' : 'Custom filter disabled',
+      onError: () => {
         useCustomFilter.checked = !enabled; // Revert on failure
-      } else {
-        setFilterStatus(enabled ? 'Custom filter enabled' : 'Custom filter disabled');
       }
-    } catch (err) {
-      setFilterStatus('Error updating filter state: ' + (err.message || err), true);
-      useCustomFilter.checked = !enabled; // Revert on failure
-      console.error('Error updating filter state:', err);
-    }
+    });
   }
 
   // Event listeners for filter management
