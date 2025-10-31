@@ -480,10 +480,10 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
       const filterFileName = sanitizeBaseName(customFilterConfig.name);
       const savedFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterFileName}.lua`);
       
-      // Copy custom filter to work directory
-      customFilterPath = path.join(workDir, 'custom-filter.lua');
+      // Verify filter file exists and use it directly (no need to copy to work directory)
       try {
-        await fsp.copyFile(savedFilterPath, customFilterPath);
+        await fsp.access(savedFilterPath, fs.constants.R_OK);
+        customFilterPath = savedFilterPath;
         filterMode = customFilterConfig.mode || 'additional';
       } catch (err) {
         console.error(`Error applying custom filter '${customFilterConfig.name}':`, err);
