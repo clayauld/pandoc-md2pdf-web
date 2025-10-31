@@ -399,9 +399,17 @@ if (HISTORY_EXPIRATION_MS > 0) {
         try {
             const toDelete = await saveHistory(h => {
                 const now = Date.now();
-                const expired = h.filter(item => item.expiresAt && item.expiresAt <= now);
+                const toKeep = [];
+                const expired = [];
+                for (const item of h) {
+                    if (item.expiresAt && item.expiresAt <= now) {
+                        expired.push(item);
+                    } else {
+                        toKeep.push(item);
+                    }
+                }
+
                 if (expired.length > 0) {
-                    const toKeep = h.filter(item => !item.expiresAt || item.expiresAt > now);
                     h.length = 0;
                     h.push(...toKeep);
                 }
