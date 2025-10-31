@@ -160,7 +160,7 @@ function collapseUnderscores(name) {
   return out;
 }
 
-function runPandoc({ cwd, mdFileName, useWatermark }) {
+function runPandoc({ cwd, mdFileName, watermarkPath }) {
   return new Promise((resolve, reject) => {
     const inputPath = path.join(cwd, mdFileName);
     let baseRaw = mdFileName;
@@ -171,9 +171,26 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
     const outDir = path.join(cwd, 'pdf_output');
     const outFile = path.join(outDir, `${base}.pdf`);
 
+    // Determine the filter.lua path: prefer /app/filter.lua (Docker/override),
+    // fall back to server/scripts/filter.lua for local development
+    let linebreaksPath = '/app/filter.lua';
+    if (!fs.existsSync(linebreaksPath)) {
+      const cwdRelative = path.join(cwd, 'filter.lua');
+      if (fs.existsSync(cwdRelative)) {
+        linebreaksPath = cwdRelative;
+      } else {
+        // Try server/scripts/filter.lua for local development
+        const scriptsPath = path.join(__dirname, 'scripts', 'filter.lua');
+        if (fs.existsSync(scriptsPath)) {
+          linebreaksPath = scriptsPath;
+        }
+        // If none found, still use /app/filter.lua and let pandoc handle the error
+      }
+    }
+
     const args = [
       inputPath,
-      '--lua-filter', path.join(cwd, 'linebreaks.lua'),
+      '--lua-filter', linebreaksPath,
       '-o', outFile,
       '--pdf-engine=xelatex',
       '-V', 'geometry:margin=1in',
@@ -184,13 +201,24 @@ function runPandoc({ cwd, mdFileName, useWatermark }) {
       '--variable=parskip:12pt',
     ];
 
-    if (useWatermark) {
-      args.push('-H', path.join(cwd, 'watermark.tex'));
+    if (watermarkPath) {
+      args.push('-H', watermarkPath);
     }
 
     fs.mkdirSync(outDir, { recursive: true });
 
-    const child = execFile('pandoc', args, { cwd }, (err) => {
+    // Ensure xelatex can find our vendored draftwatermark.sty
+    const execOpts = {
+      cwd,
+      env: {
+        ...process.env,
+        // Prepend /app/tex to TEXINPUTS. The double-colon at the end ensures
+        // that the default search paths are still used, which includes the cwd.
+        TEXINPUTS: `/app/tex:${process.env.TEXINPUTS || ''}:`,
+      },
+    };
+
+    const child = execFile('pandoc', args, execOpts, (err) => {
       if (err) return reject(err);
       resolve(outFile);
     });
@@ -210,47 +238,52 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
 
   const id = nanoid(10);
   const workDir = path.join(__dirname, 'tmp', id);
+  let watermarkPath = null;
 
   try {
     await fsp.mkdir(workDir, { recursive: true });
 
-    // Copy required assets once per batch
-    const projectRoot = path.join(__dirname, '..');
-    const assets = ['linebreaks.lua', 'watermark.tex'];
-    await Promise.all(
-      assets.map(async (a) => {
-        try {
-          await fsp.copyFile(path.join(projectRoot, a), path.join(workDir, a));
-        } catch (_) {}
-      })
-    );
-
     if (watermark) {
-      // Copy vendored draftwatermark.sty into working dir if available
+      // Use /tmp for watermark.tex to avoid persisting it to the mounted volume
+      const tempWatermarkPath = `/tmp/pandoc-watermark-${id}.tex`;
+      const staticWatermarkPath = '/app/watermark.tex';
+      let useStaticWatermark = false;
       try {
-        await fsp.copyFile(path.join(projectRoot, 'tex', 'draftwatermark.sty'), path.join(workDir, 'draftwatermark.sty'));
-      } catch (_) {}
-      const escapeLatex = (s) => s
-        .replace(/\\/g, '\\\\')
-        .replace(/\{/g, '\\{')
-        .replace(/\}/g, '\\}')
-        .replace(/\^/g, '\\^{}')
-        .replace(/\~/g, '\\~{}')
-        .replace(/\$/g, '\\$')
-        .replace(/#/g, '\\#')
-        .replace(/%/g, '\\%')
-        .replace(/&/g, '\\&')
-        .replace(/_/g, '\\_');
+        await fsp.access(staticWatermarkPath, fs.constants.R_OK);
+        useStaticWatermark = true;
+      } catch {
+        // File doesn't exist or isn't accessible, which is fine. Fall back to dynamic generation.
+      }
 
-      const escaped = escapeLatex(watermarkText).slice(0, 200); // limit length
-      const customWatermark = [
-        '\\usepackage{draftwatermark}',
-        `\\SetWatermarkText{${escaped || 'DRAFT'}}`,
-        '\\SetWatermarkScale{1.25}',
-        '\\SetWatermarkColor[gray]{0.85}',
-        ''
-      ].join('\n');
-      await fsp.writeFile(path.join(workDir, 'watermark.tex'), customWatermark, 'utf8');
+      if (useStaticWatermark) {
+        // If a static override exists, copy it to temp location. A failure here will be caught
+        // by the main endpoint handler and correctly fail the request.
+        await fsp.copyFile(staticWatermarkPath, tempWatermarkPath);
+      } else {
+        // Otherwise, generate the watermark dynamically based on user text.
+        const escapeLatex = (s) => s
+          .replace(/\\/g, '\\\\')
+          .replace(/\{/g, '\\{')
+          .replace(/\}/g, '\\}')
+          .replace(/\^/g, '\\^{}')
+          .replace(/\~/g, '\\~{}')
+          .replace(/\$/g, '\\$')
+          .replace(/#/g, '\\#')
+          .replace(/%/g, '\\%')
+          .replace(/&/g, '\\&')
+          .replace(/_/g, '\\_');
+
+        const escaped = escapeLatex(watermarkText).slice(0, 200); // limit length
+        const customWatermark = [
+          '\\usepackage{draftwatermark}',
+          `\\SetWatermarkText{${escaped || 'DRAFT'}}`,
+          '\\SetWatermarkScale{1.25}',
+          '\\SetWatermarkColor[gray]{0.85}',
+          ''
+        ].join('\n');
+        await fsp.writeFile(tempWatermarkPath, customWatermark, 'utf8');
+      }
+      watermarkPath = tempWatermarkPath;
     }
 
     const results = [];
@@ -261,7 +294,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         const mdPath = path.join(workDir, mdName);
         await fsp.writeFile(mdPath, file.buffer);
 
-        const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, useWatermark: watermark });
+        const pdfPath = await runPandoc({ cwd: workDir, mdFileName: mdName, watermarkPath });
         results.push({
             name: path.basename(pdfPath),
             originalName: file.originalname,
@@ -284,11 +317,20 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         expiresAt: HISTORY_EXPIRATION_MS > 0 ? Date.now() + HISTORY_EXPIRATION_MS : undefined,
         workDir,
     }));
+    
+    // Clean up temporary watermark file (if created)
+    if (watermarkPath) {
+      try { await fsp.unlink(watermarkPath); } catch (_) {}
+    }
+    
     res.json({ id, results });
 
   } catch (err) {
     // Best-effort cleanup on catastrophic failure
     try { await fsp.rm(workDir, { recursive: true, force: true }); } catch (_) {}
+    if (watermarkPath) {
+      try { await fsp.unlink(watermarkPath); } catch (_) {}
+    }
     res.status(500).json({ error: 'Conversion process failed', details: String(err && err.message || err) });
   }
 });
