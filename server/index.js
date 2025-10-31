@@ -307,7 +307,7 @@ app.get('/api/filter/default', filterLimiter, async (req, res) => {
 });
 
 // GET /api/filter/custom - Get the custom filter config and content
-app.get('/api/filter/custom', async (req, res) => {
+app.get('/api/filter/custom', filterLimiter, async (req, res) => {
   try {
     const config = await loadCustomFilterConfig();
     if (!config) {
@@ -341,7 +341,7 @@ app.get('/api/filter/custom', async (req, res) => {
 });
 
 // POST /api/filter/save - Save a custom filter
-app.post('/api/filter/save', async (req, res) => {
+app.post('/api/filter/save', filterLimiter, async (req, res) => {
   try {
     const { name, code, mode, enabled } = req.body;
 
