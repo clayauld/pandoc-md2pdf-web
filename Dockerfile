@@ -39,13 +39,18 @@ RUN set -eux; \
     curl -fsSL https://raw.githubusercontent.com/callegar/LaTeX-draftwatermark/R3.3/draftwatermark.ins -o draftwatermark.ins; \
     curl -fsSL https://raw.githubusercontent.com/callegar/LaTeX-draftwatermark/R3.3/draftwatermark.dtx -o draftwatermark.dtx; \
     latex -interaction=nonstopmode draftwatermark.ins || true; \
-    test -f draftwatermark.sty
-
-# Install enotez package and its dependencies using tlmgr
-RUN tlmgr update --self && \
-    tlmgr install enotez translations || \
-    (tlmgr option repository https://mirror.ctan.org/systems/texlive/tlnet && \
-     tlmgr install enotez translations)
+    test -f draftwatermark.sty; \
+    # Download and extract translations package
+    curl -fsSL https://raw.githubusercontent.com/cgnieder/translations/refs/heads/master/translations.sty -o translations.sty; \
+    curl -fsSL https://raw.githubusercontent.com/cgnieder/translations/refs/heads/master/translations-v1.sty -o translations-v1.sty; \
+    latex translations.ins || true; \
+    # Download and extract enotez package
+    curl -fsSL https://raw.githubusercontent.com/cgnieder/enotez/refs/heads/master/enotez.sty -o enotez.sty; \
+    latex enotez.ins || true; \
+    # Verify the files were created
+    test -f translations.sty; \
+    test -f translations-v1.sty; \
+    test -f enotez.sty
 
 # Install custom fonts (if provided) into system directory and refresh cache
 RUN set -eux; \
