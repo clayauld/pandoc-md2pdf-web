@@ -41,6 +41,12 @@ RUN set -eux; \
     latex -interaction=nonstopmode draftwatermark.ins || true; \
     test -f draftwatermark.sty
 
+# Install enotez package and its dependencies using tlmgr
+RUN tlmgr update --self && \
+    tlmgr install enotez translations || \
+    (tlmgr option repository https://mirror.ctan.org/systems/texlive/tlnet && \
+     tlmgr install enotez translations)
+
 # Install custom fonts (if provided) into system directory and refresh cache
 RUN set -eux; \
     mkdir -p /usr/local/share/fonts/custom || true; \
