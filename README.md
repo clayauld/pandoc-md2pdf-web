@@ -44,6 +44,8 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 
 - 🖱️ **Simple Drag-and-Drop UI** - No command line required
 - 📝 **Markdown to PDF Conversion** - High-quality output using Pandoc/XeLaTeX
+-  orientation **Portrait/Landscape** - Choose between portrait and landscape orientation
+- 📐 **Multiple Paper Sizes** - Select from standard paper sizes (Letter, A4, etc.)
 - 🏷️ **Optional Watermarks** - Add "DRAFT" or custom text watermarks
 - 🔧 **Custom Lua Filters** - Create and save custom Pandoc Lua filters for advanced document processing
 - 🎨 **Beautiful Typography** - Professional Libertinus font family included
@@ -212,6 +214,12 @@ The application provides a REST API for programmatic access, perfect for automat
 
 `files`
 : **File[]** (✅ Yes) - One or more Markdown (`.md`) files (can upload multiple files)
+
+`orientation`
+: **String** (No, default: `portrait`) - Page orientation (`portrait` or `landscape`)
+
+`paperSize`
+: **String** (No, default: `letter`) - Paper size (`letter`, `legal`, `tabloid`, `a3`, `a4`, or `a5`)
 
 `watermark`
 : **Boolean** (No, default: `false`) - Enable watermark (`true` or `false`)
