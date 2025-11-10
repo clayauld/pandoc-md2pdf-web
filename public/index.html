@@ -24,6 +24,25 @@
         <button id="submit" type="submit" disabled>Convert to PDF</button>
         
         <h2 class="custom-options-heading">Custom Options</h2>
+
+        <label class="opt">
+          Orientation
+          <select id="orientation" name="orientation">
+            <option value="portrait" selected>Portrait</option>
+            <option value="landscape">Landscape</option>
+          </select>
+        </label>
+        <label class="opt">
+          Paper Size
+          <select id="paperSize" name="paperSize">
+            <option value="letter" selected>Letter</option>
+            <option value="legal">Legal</option>
+            <option value="tabloid">Tabloid</option>
+            <option value="a3">A3</option>
+            <option value="a4">A4</option>
+            <option value="a5">A5</option>
+          </select>
+        </label>
         
         <label class="opt">
           <input type="checkbox" id="watermark" name="watermark" />

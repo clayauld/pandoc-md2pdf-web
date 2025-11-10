@@ -266,7 +266,15 @@ async function saveCustomFilter(saveFn) {
   return newSavePromise;
 }
 
-function runPandoc({ cwd, mdFileName, watermarkPath, customFilterPath, filterMode }) {
+function runPandoc({
+  cwd,
+  mdFileName,
+  watermarkPath,
+  customFilterPath,
+  filterMode,
+  orientation,
+  paperSize,
+}) {
   return new Promise((resolve, reject) => {
     const inputPath = path.join(cwd, mdFileName);
     let baseRaw = mdFileName;
@@ -298,12 +306,16 @@ function runPandoc({ cwd, mdFileName, watermarkPath, customFilterPath, filterMod
       '-o', outFile,
       '--pdf-engine=xelatex',
       '-V', 'geometry:margin=1in',
-      '-V', 'papersize:letter',
+      '-V', `papersize:${paperSize || 'letter'}`,
       '-V', 'mainfont=Libertinus Serif',
       '-V', 'monofont=Libertinus Mono',
       '--variable=documentclass:article',
       '--variable=parskip:12pt',
     );
+
+    if (orientation === 'landscape') {
+      args.push('-V', 'geometry:landscape');
+    }
 
     if (watermarkPath) {
       args.push('-H', watermarkPath);
@@ -489,6 +501,7 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
 });
 
 app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => {
+  const { orientation, paperSize } = req.body;
   const watermark = String(req.body?.watermark || '').toLowerCase() === 'true';
   const rawWatermarkText = String(req.body?.watermarkText || '');
   const watermarkText = (rawWatermarkText.trim() || 'DRAFT');
@@ -575,12 +588,14 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         const mdPath = path.join(workDir, mdName);
         await fsp.writeFile(mdPath, file.buffer);
 
-        const pdfPath = await runPandoc({ 
-          cwd: workDir, 
-          mdFileName: mdName, 
+        const pdfPath = await runPandoc({
+          cwd: workDir,
+          mdFileName: mdName,
           watermarkPath,
           customFilterPath,
-          filterMode
+          filterMode,
+          orientation,
+          paperSize,
         });
         results.push({
             name: path.basename(pdfPath),

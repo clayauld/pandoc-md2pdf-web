@@ -7,6 +7,8 @@
   const status = document.getElementById('status');
   const results = document.getElementById('results');
   const history = document.getElementById('history');
+  const orientation = document.getElementById('orientation');
+  const paperSize = document.getElementById('paperSize');
   const watermark = document.getElementById('watermark');
   const watermarkText = document.getElementById('watermarkText');
   const useCustomFilter = document.getElementById('useCustomFilter');
@@ -143,6 +145,9 @@
       }
       data.append('files', file, uploadName);
     }
+
+    data.append('orientation', orientation.value);
+    data.append('paperSize', paperSize.value);
     data.append('watermark', watermark.checked ? 'true' : 'false');
     if (watermark.checked) {
       const text = (watermarkText.value || '').trim() || 'DRAFT';

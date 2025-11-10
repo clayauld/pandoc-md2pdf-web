@@ -110,7 +110,8 @@ input[type="checkbox"] {
   margin-right: 8px;
 }
 
-input[type="text"] {
+input[type="text"],
+select {
   background: #1e293b;
   border: 1px solid #4a5568;
   border-radius: 6px;
