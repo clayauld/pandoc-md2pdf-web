@@ -501,7 +501,11 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
 });
 
 app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => {
-  const { orientation, paperSize } = req.body;
+  const { orientation: rawOrientation, paperSize: rawPaperSize } = req.body;
+  // Validate user input to prevent pandoc argument injection.
+  const orientation = ['portrait', 'landscape'].includes(rawOrientation) ? rawOrientation : 'portrait';
+  const paperSize = ['letter', 'legal', 'tabloid', 'a3', 'a4', 'a5'].includes(rawPaperSize) ? rawPaperSize : 'letter';
+
   const watermark = String(req.body?.watermark || '').toLowerCase() === 'true';
   const rawWatermarkText = String(req.body?.watermarkText || '');
   const watermarkText = (rawWatermarkText.trim() || 'DRAFT');

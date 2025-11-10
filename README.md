@@ -44,7 +44,7 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 
 - 🖱️ **Simple Drag-and-Drop UI** - No command line required
 - 📝 **Markdown to PDF Conversion** - High-quality output using Pandoc/XeLaTeX
--  orientation **Portrait/Landscape** - Choose between portrait and landscape orientation
+- ↔️ **Portrait/Landscape** - Choose between portrait and landscape orientation
 - 📐 **Multiple Paper Sizes** - Select from standard paper sizes (Letter, A4, etc.)
 - 🏷️ **Optional Watermarks** - Add "DRAFT" or custom text watermarks
 - 🔧 **Custom Lua Filters** - Create and save custom Pandoc Lua filters for advanced document processing
