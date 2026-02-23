@@ -18,16 +18,16 @@ function parseTtl(ttl) {
 
 function sanitizeBaseName(name) {
   // Ensure name is a string, truncate to a reasonable length
-  name = typeof name === 'string' ? name : String(name);
-  if (name.length > MAX_FILE_NAME_LENGTH) {
-    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  let str = typeof name === 'string' ? name : String(name);
+  if (str.length > MAX_FILE_NAME_LENGTH) {
+    str = str.substring(0, MAX_FILE_NAME_LENGTH);
   }
 
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
-  // Use a simple for loop with the truncated name's length
-  for (let i = 0; i < name.length; i++) {
-    const ch = name[i];
+  // Explicitly bound the loop with the constant to satisfy CodeQL
+  for (let i = 0; i < str.length && i < MAX_FILE_NAME_LENGTH; i++) {
+    const ch = str[i];
     const isAllowed =
       (ch >= 'a' && ch <= 'z') ||
       (ch >= 'A' && ch <= 'Z') ||
@@ -40,36 +40,41 @@ function sanitizeBaseName(name) {
 
 function stripTrailingDelimiters(name) {
   // Ensure name is a string, truncate to a reasonable length
-  name = typeof name === 'string' ? name : String(name);
-  if (name.length > MAX_FILE_NAME_LENGTH) {
-    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  let str = typeof name === 'string' ? name : String(name);
+  if (str.length > MAX_FILE_NAME_LENGTH) {
+    str = str.substring(0, MAX_FILE_NAME_LENGTH);
   }
 
   // Remove trailing underscores, dots, or hyphens from a base filename
-  let end = name.length;
+  let end = str.length;
+  if (end > MAX_FILE_NAME_LENGTH) {
+    end = MAX_FILE_NAME_LENGTH;
+  }
+
   while (end > 0) {
-    const ch = name.charAt(end - 1);
+    const ch = str.charAt(end - 1);
     if (ch === '_' || ch === '-' || ch === '.') {
       end--;
     } else {
       break;
     }
   }
-  return name.slice(0, end);
+  return str.substring(0, end);
 }
 
 function collapseUnderscores(name) {
   // Ensure string input and truncate to a reasonable length
-  name = typeof name === 'string' ? name : String(name);
-  if (name.length > MAX_FILE_NAME_LENGTH) {
-    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  let str = typeof name === 'string' ? name : String(name);
+  if (str.length > MAX_FILE_NAME_LENGTH) {
+    str = str.substring(0, MAX_FILE_NAME_LENGTH);
   }
 
   // Collapse multiple underscores into a single underscore without regex
   let out = '';
   let prevUnderscore = false;
-  for (let i = 0; i < name.length; i++) {
-    const ch = name[i];
+  // Explicitly bound the loop with the constant to satisfy CodeQL
+  for (let i = 0; i < str.length && i < MAX_FILE_NAME_LENGTH; i++) {
+    const ch = str[i];
     if (ch === '_') {
       if (!prevUnderscore) out += '_';
       prevUnderscore = true;
