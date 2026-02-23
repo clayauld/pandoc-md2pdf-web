@@ -74,6 +74,7 @@ async function saveHistory(updateFn) {
 }
 
 loadHistory().catch(err => console.error('Initialization failed:', err));
+loadCustomFilterConfig().catch(err => console.error('Custom filter initialization failed:', err));
 
 function parseTtl(ttl) {
   if (!ttl) return 3600 * 1000; // Default: 1 hour
@@ -177,8 +178,8 @@ const CUSTOM_FILTER_DIR = path.join(__dirname, 'tmp', 'custom-filters');
 const CUSTOM_FILTER_CONFIG_FILE = path.join(CUSTOM_FILTER_DIR, '.config.json');
 
 // In-memory cache for custom filter config to avoid redundant I/O
-let cachedCustomFilterConfig = null;
-let customFilterConfigLoaded = false;
+// undefined: not loaded, null: no config or invalid, object: valid config
+let cachedCustomFilterConfig = undefined;
 
 // Promise chain to serialize filter save operations (prevents race conditions)
 let filterSaveChain = Promise.resolve();
@@ -237,7 +238,7 @@ function validateCustomFilterConfig(config) {
  * @returns {Promise<{name: string, mode: string, enabled: boolean} | null>}
  */
 async function loadCustomFilterConfig() {
-  if (customFilterConfigLoaded && cachedCustomFilterConfig !== null) {
+  if (cachedCustomFilterConfig !== undefined) {
     return cachedCustomFilterConfig;
   }
 
@@ -247,22 +248,18 @@ async function loadCustomFilterConfig() {
     
     if (!validateCustomFilterConfig(config)) {
       cachedCustomFilterConfig = null;
-      customFilterConfigLoaded = true;
       return null;
     }
     
     cachedCustomFilterConfig = config;
-    customFilterConfigLoaded = true;
     return config;
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      cachedCustomFilterConfig = null;
-      customFilterConfigLoaded = true;
-      return null;
+    if (err.code !== 'ENOENT') {
+      // JSON parse errors or other errors
+      console.error('Error loading custom filter config:', err);
     }
-    // JSON parse errors or other errors
-    console.error('Error loading custom filter config:', err);
-    // Don't cache on unexpected errors to allow retry
+    // Cache null to prevent redundant I/O even on errors
+    cachedCustomFilterConfig = null;
     return null; // Return null instead of throwing to allow system to continue
   }
 }
@@ -280,7 +277,6 @@ async function saveCustomFilterConfig(config) {
   await fsp.writeFile(CUSTOM_FILTER_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
   // Update cache after successful write
   cachedCustomFilterConfig = config;
-  customFilterConfigLoaded = true;
 }
 
 /**
