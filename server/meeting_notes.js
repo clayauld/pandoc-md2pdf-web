@@ -163,7 +163,7 @@ Instructions:
       model: LLM_MODEL,
     });
 
-    let generatedText = completion.choices[0].message.content;
+    let generatedText = completion.choices[0].message.content || '';
 
     // Clean up potential markdown code blocks if the LLM adds them despite instructions
     // Remove ```markdown ... ``` or ``` ... ```
