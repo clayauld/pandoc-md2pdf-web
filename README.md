@@ -596,6 +596,29 @@ chmod +r ./my_assets/*
 - **Default Filter**: The included `filter.lua` file is currently empty (contains only commented-out code) and does not perform any processing by default. See [Overriding Conversion Assets](#overriding-conversion-assets) for details on overriding it via Docker volumes, or use the web UI's custom filter feature with "override" mode to replace it on a per-request basis.
 - **Watermarks**: When enabled, injects `watermark.tex` which uses the LaTeX `draftwatermark` package
 
+### Meeting Notes Generator
+
+The application includes an optional "Meeting Notes" generator that uses an LLM (Large Language Model) to create professional meeting minutes from transcripts.
+
+**Enabling the Feature:**
+Set the environment variable `ENABLE_MEETING_NOTES=true` in your `.env` or `docker-compose.yml` file.
+
+**Configuration:**
+The generator uses **LiteLLM** or any OpenAI-compatible API.
+
+- `ENABLE_MEETING_NOTES`: Set to `true` to show the "Meeting Notes" tab.
+- `LLM_API_BASE`: The base URL for the LLM API (e.g., `http://litellm:4000` for local LiteLLM, or `https://api.openai.com/v1`).
+- `LLM_API_KEY`: Your API key for the LLM provider.
+- `LLM_MODEL`: The model to use (default: `gpt-3.5-turbo`).
+
+**Usage:**
+1. Switch to the "Meeting Notes" tab.
+2. Upload a **Transcript** (required).
+3. Optionally upload an **Agenda**, **Past Minutes (Context)**, or a **Template**.
+4. Click "Generate Meeting Notes".
+5. Edit the generated Markdown in the live editor.
+6. Click "Convert to PDF" to generate the final PDF document.
+
 ---
 
 ## 🎨 Font Customization

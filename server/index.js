@@ -31,6 +31,8 @@ const filterLimiter = rateLimit({
 
 require('dotenv').config();
 
+const meetingNotesRouter = require('./meeting_notes');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -96,6 +98,16 @@ const HISTORY_EXPIRATION_MS = parseTtl(process.env.HISTORY_TTL);
 
 // JSON body parsing for API endpoints
 app.use(express.json());
+
+// Mount meeting notes router
+app.use('/api', meetingNotesRouter);
+
+// GET /api/config - Expose configuration to frontend
+app.get('/api/config', (req, res) => {
+  res.json({
+    meetingNotesEnabled: process.env.ENABLE_MEETING_NOTES === 'true'
+  });
+});
 
 // Static frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));

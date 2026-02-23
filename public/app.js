@@ -408,6 +408,141 @@
     // Then load custom filter if it exists (it will override the default in the textarea)
     await loadCustomFilter();
   })();
+
+  /* =========================================
+     Meeting Notes Feature
+     ========================================= */
+
+  const meetingNotesTabBtn = document.getElementById('meetingNotesTabBtn');
+  const converterTabBtn = document.querySelector('[data-tab="converter"]');
+  const converterContent = document.getElementById('converter');
+  const meetingNotesContent = document.getElementById('meeting-notes');
+  const notesForm = document.getElementById('notes-form');
+  const generateNotesBtn = document.getElementById('generateNotesBtn');
+  const notesStatus = document.getElementById('notesStatus');
+  const editorContainer = document.getElementById('editor-container');
+  const markdownEditor = document.getElementById('markdown-editor');
+  const markdownPreview = document.getElementById('markdown-preview');
+  const notesActions = document.getElementById('notes-actions');
+  const downloadMarkdownBtn = document.getElementById('downloadMarkdownBtn');
+  const convertNotesBtn = document.getElementById('convertNotesBtn');
+
+  // Check feature flag
+  fetch('/api/config')
+    .then(res => res.json())
+    .then(config => {
+      if (config.meetingNotesEnabled) {
+        meetingNotesTabBtn.style.display = 'block';
+      }
+    })
+    .catch(err => console.error('Error loading config:', err));
+
+  // Tab Switching Logic
+  function switchTab(tabName) {
+    if (tabName === 'meeting-notes') {
+      converterContent.style.display = 'none';
+      meetingNotesContent.style.display = 'block';
+      meetingNotesTabBtn.classList.add('active');
+      converterTabBtn.classList.remove('active');
+    } else {
+      converterContent.style.display = 'block';
+      meetingNotesContent.style.display = 'none';
+      meetingNotesTabBtn.classList.remove('active');
+      converterTabBtn.classList.add('active');
+    }
+  }
+
+  meetingNotesTabBtn.addEventListener('click', () => switchTab('meeting-notes'));
+  converterTabBtn.addEventListener('click', () => switchTab('converter'));
+
+  // Live Markdown Preview
+  markdownEditor.addEventListener('input', () => {
+    const markdownText = markdownEditor.value;
+    markdownPreview.innerHTML = marked.parse(markdownText);
+  });
+
+  // Handle Note Generation
+  notesForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(notesForm);
+    generateNotesBtn.disabled = true;
+    generateNotesBtn.textContent = 'Generating...';
+    notesStatus.textContent = 'Processing transcript and generating minutes (this may take a minute)...';
+    notesStatus.classList.remove('error');
+
+    try {
+      const res = await fetch('/api/generate-minutes', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Generation failed');
+      }
+
+      const data = await res.json();
+
+      // Populate Editor
+      markdownEditor.value = data.markdown;
+      markdownPreview.innerHTML = marked.parse(data.markdown);
+
+      // Show Editor & Actions
+      editorContainer.style.display = 'flex';
+      notesActions.style.display = 'flex';
+      notesStatus.textContent = 'Meeting minutes generated successfully!';
+
+    } catch (err) {
+      console.error(err);
+      notesStatus.textContent = 'Error: ' + err.message;
+      notesStatus.classList.add('error');
+    } finally {
+      generateNotesBtn.disabled = false;
+      generateNotesBtn.textContent = 'Generate Meeting Notes';
+    }
+  });
+
+  // Download Markdown
+  downloadMarkdownBtn.addEventListener('click', () => {
+    const markdown = markdownEditor.value;
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'meeting_minutes.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // Convert Generated Notes to PDF
+  convertNotesBtn.addEventListener('click', async () => {
+    const markdown = markdownEditor.value;
+    if (!markdown.trim()) {
+      alert('No content to convert!');
+      return;
+    }
+
+    // Create a File object from the current markdown content
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const file = new File([blob], 'meeting_minutes.md', { type: 'text/markdown' });
+
+    // Switch back to converter tab
+    switchTab('converter');
+
+    // Simulate file selection in the main converter
+    // We can't directly set fileInput.files due to security, so we'll use our internal state
+    addFiles([file]);
+    renderFileList();
+    enableSubmit(true);
+
+    // Optional: Auto-submit?
+    // Let's just populate it so the user can review options (watermark, etc) before clicking "Convert"
+    setStatus('Meeting minutes loaded. Click "Convert to PDF" to finish.');
+  });
+
 })();
 
 

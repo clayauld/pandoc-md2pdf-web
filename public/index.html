@@ -10,88 +10,146 @@
   <body>
     <main>
       <h1>Pandoc Web Converter</h1>
-      <form id="form" action="/convert" method="post" enctype="multipart/form-data">
-        <div id="drop" class="drop">
-          <h4>Drag & drop .md files here</h4>
-          <p>or</p>
-          <label for="file" class="file-label">
-            Choose files
-          </label>
-          <input id="file" name="files" type="file" accept=".md,text/markdown" multiple />
-          <div id="file-list" class="file-list"></div>
-        </div>
-        
-        <button id="submit" type="submit" disabled>Convert to PDF</button>
-        
-        <h2 class="custom-options-heading">Custom Options</h2>
 
-        <label class="opt">
-          Orientation
-          <select id="orientation" name="orientation">
-            <option value="portrait" selected>Portrait</option>
-            <option value="landscape">Landscape</option>
-          </select>
-        </label>
-        <label class="opt">
-          Paper Size
-          <select id="paperSize" name="paperSize">
-            <option value="letter" selected>Letter</option>
-            <option value="legal">Legal</option>
-            <option value="tabloid">Tabloid</option>
-            <option value="a3">A3</option>
-            <option value="a4">A4</option>
-            <option value="a5">A5</option>
-          </select>
-        </label>
-        
-        <label class="opt">
-          <input type="checkbox" id="watermark" name="watermark" />
-          Apply watermark (uses watermark.tex)
-        </label>
-        <label class="opt">
-          Watermark text
-          <input type="text" id="watermarkText" name="watermarkText" placeholder="DRAFT" disabled />
-        </label>
-        
-        <details class="filter-section">
-          <summary class="filter-summary">Custom Lua Filter</summary>
-          <div class="filter-content">
-            <label class="opt">
-              <input type="checkbox" id="useCustomFilter" />
-              Use custom filter
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="converter">PDF Converter</button>
+        <button class="tab-btn" data-tab="meeting-notes" id="meetingNotesTabBtn" style="display: none;">Meeting Notes</button>
+      </div>
+
+      <div id="converter" class="tab-content active">
+        <form id="form" action="/convert" method="post" enctype="multipart/form-data">
+          <div id="drop" class="drop">
+            <h4>Drag & drop .md files here</h4>
+            <p>or</p>
+            <label for="file" class="file-label">
+              Choose files
             </label>
-            <label class="opt">
-              Filter name
-              <input type="text" id="filterName" placeholder="custom-filter" />
-            </label>
-            <div class="opt filter-mode">
-              <label>
-                <input type="radio" name="filterMode" value="override" />
-                Override default filter
-              </label>
-              <label>
-                <input type="radio" name="filterMode" value="additional" checked />
-                In addition to default filter
-              </label>
-            </div>
-            <label class="opt">
-              Filter code
-              <textarea id="filterCode" class="filter-code" rows="10" placeholder="-- Your Lua filter code here"></textarea>
-            </label>
-            <button type="button" id="saveFilter" class="button-secondary">Save Filter</button>
-            <div id="filterStatus" class="filter-status"></div>
-            <div id="savedFilterDisplay" class="saved-filter-display" style="display: none;">
-              <h4 id="savedFilterName"></h4>
-              <pre id="savedFilterCode" class="saved-filter-code"></pre>
-            </div>
+            <input id="file" name="files" type="file" accept=".md,text/markdown" multiple />
+            <div id="file-list" class="file-list"></div>
           </div>
-        </details>
-      </form>
 
-      <div id="status" class="status"></div>
-      <div id="results" class="results"></div>
+          <button id="submit" type="submit" disabled>Convert to PDF</button>
+
+          <h2 class="custom-options-heading">Custom Options</h2>
+
+          <label class="opt">
+            Orientation
+            <select id="orientation" name="orientation">
+              <option value="portrait" selected>Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
+          </label>
+          <label class="opt">
+            Paper Size
+            <select id="paperSize" name="paperSize">
+              <option value="letter" selected>Letter</option>
+              <option value="legal">Legal</option>
+              <option value="tabloid">Tabloid</option>
+              <option value="a3">A3</option>
+              <option value="a4">A4</option>
+              <option value="a5">A5</option>
+            </select>
+          </label>
+
+          <label class="opt">
+            <input type="checkbox" id="watermark" name="watermark" />
+            Apply watermark (uses watermark.tex)
+          </label>
+          <label class="opt">
+            Watermark text
+            <input type="text" id="watermarkText" name="watermarkText" placeholder="DRAFT" disabled />
+          </label>
+
+          <details class="filter-section">
+            <summary class="filter-summary">Custom Lua Filter</summary>
+            <div class="filter-content">
+              <label class="opt">
+                <input type="checkbox" id="useCustomFilter" />
+                Use custom filter
+              </label>
+              <label class="opt">
+                Filter name
+                <input type="text" id="filterName" placeholder="custom-filter" />
+              </label>
+              <div class="opt filter-mode">
+                <label>
+                  <input type="radio" name="filterMode" value="override" />
+                  Override default filter
+                </label>
+                <label>
+                  <input type="radio" name="filterMode" value="additional" checked />
+                  In addition to default filter
+                </label>
+              </div>
+              <label class="opt">
+                Filter code
+                <textarea id="filterCode" class="filter-code" rows="10" placeholder="-- Your Lua filter code here"></textarea>
+              </label>
+              <button type="button" id="saveFilter" class="button-secondary">Save Filter</button>
+              <div id="filterStatus" class="filter-status"></div>
+              <div id="savedFilterDisplay" class="saved-filter-display" style="display: none;">
+                <h4 id="savedFilterName"></h4>
+                <pre id="savedFilterCode" class="saved-filter-code"></pre>
+              </div>
+            </div>
+          </details>
+        </form>
+
+        <div id="status" class="status"></div>
+        <div id="results" class="results"></div>
+      </div>
+
+      <div id="meeting-notes" class="tab-content" style="display: none;">
+        <form id="notes-form">
+          <div class="form-group">
+            <label for="transcript">Transcript (Required)</label>
+            <input type="file" id="transcript" name="transcript" accept=".txt,.md,.pdf" required />
+            <small>Upload the meeting transcript (text, markdown, or PDF).</small>
+          </div>
+
+          <div class="form-group">
+            <label for="agenda">Agenda (Optional)</label>
+            <input type="file" id="agenda" name="agenda" accept=".txt,.md,.pdf" />
+            <small>Upload the meeting agenda.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="context">Past Minutes / Context (Optional)</label>
+            <input type="file" id="context" name="context" accept=".txt,.md,.pdf" />
+            <small>Upload previous meeting minutes for context.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="template">Template (Optional)</label>
+            <input type="file" id="template" name="template" accept=".txt,.md,.pdf" />
+            <small>Upload a template to guide the format.</small>
+          </div>
+
+          <button id="generateNotesBtn" type="submit">Generate Meeting Notes</button>
+        </form>
+
+        <div id="notesStatus" class="status"></div>
+
+        <div id="editor-container" class="editor-container" style="display: none;">
+          <div class="editor-pane">
+            <h4>Markdown Editor</h4>
+            <textarea id="markdown-editor" placeholder="Generated markdown will appear here..."></textarea>
+          </div>
+          <div class="preview-pane">
+            <h4>Live Preview</h4>
+            <div id="markdown-preview"></div>
+          </div>
+        </div>
+
+        <div id="notes-actions" class="notes-actions" style="display: none;">
+          <button id="downloadMarkdownBtn" class="button-secondary">Download Markdown</button>
+          <button id="convertNotesBtn" class="button">Convert to PDF</button>
+        </div>
+      </div>
+
     </main>
     <aside id="history" class="history"></aside>
+    <script src="/vendor/marked.min.js"></script>
     <script src="/app.js"></script>
   </body>
   </html>
