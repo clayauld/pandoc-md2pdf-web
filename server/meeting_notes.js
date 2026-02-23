@@ -63,6 +63,13 @@ async function extractText(buffer, mimetype, originalname) {
   }
 }
 
+// Initialize OpenAI client globally to reuse connection and config
+// If LLM_API_KEY is missing but LLM_API_BASE is set (e.g. LiteLLM), use a dummy key
+const openai = new OpenAI({
+  apiKey: LLM_API_KEY || 'dummy-key',
+  baseURL: LLM_API_BASE,
+});
+
 // POST /api/generate-minutes
 router.post('/generate-minutes', generateLimiter, upload.fields([
   { name: 'transcript', maxCount: 1 },
@@ -74,6 +81,7 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
     return res.status(403).json({ error: 'Meeting notes generation is disabled.' });
   }
 
+  // Ensure at least one config is present if we are going to try to call the API
   if (!process.env.LLM_API_KEY && !process.env.LLM_API_BASE) {
      return res.status(500).json({ error: 'LLM configuration missing (API Key or Base URL).' });
   }
@@ -147,11 +155,6 @@ Instructions:
 `;
 
     // 4. Call LLM
-    const openai = new OpenAI({
-      apiKey: LLM_API_KEY || 'dummy-key', // LiteLLM might not need a real key if running locally, but SDK requires one
-      baseURL: LLM_API_BASE,
-    });
-
     const completion = await openai.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
