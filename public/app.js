@@ -585,6 +585,9 @@
     // If using file mode, clear library selection to avoid sending confusing data
     if (contextMode === 'file') {
         formData.delete('contextFile');
+    } else {
+        // If using library mode, ensure the file input is cleared to avoid sending conflicting data.
+        // The radio change handler should already handle this.
     }
     
     // Clear the unused agenda input so the server knows exactly which one to parse

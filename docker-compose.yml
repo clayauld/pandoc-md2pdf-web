@@ -8,9 +8,6 @@ services:
     restart: unless-stopped
     environment:
       - ENABLE_MEETING_NOTES=false
-      - LLM_API_BASE=http://litellm:4000
-      - LLM_API_KEY=sk-1234
-      - LLM_MODEL=gpt-3.5-turbo
     volumes:
       - ./app-data:/app/server/tmp
       - ./app-data/library:/app/server/data/library

@@ -29,6 +29,7 @@ A simple, drag-and-drop web application that converts Markdown files to beautifu
 This tool provides a user-friendly web interface for converting Markdown (`.md`) files into professional PDF documents. Instead of manually running command-line tools, simply drag and drop your Markdown file into a browser, and get a formatted PDF in seconds.
 
 **Use Cases:**
+
 - Generate PDF reports from Markdown documentation
 - Create professional-looking documents without LaTeX knowledge
 - Add "DRAFT" or custom watermarks to documents
@@ -55,6 +56,7 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 - ❤️ **Health Checks** - Built-in endpoint for container monitoring
 
 **Default PDF Styling:**
+
 - Letter-sized paper (8.5" × 11")
 - 1-inch margins on all sides
 - Libertinus Serif for body text
@@ -81,6 +83,7 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 **That's it!** All other dependencies (Pandoc, LaTeX, fonts, Node.js) are bundled in the Docker image.
 
 **Checking if Docker is installed:**
+
 ```bash
 docker --version
 docker compose version
@@ -99,6 +102,7 @@ curl -sSL https://raw.githubusercontent.com/clayauld/pandoc-md2pdf-web/main/inst
 ```
 
 **What does this do?**
+
 - It downloads and runs the `install.sh` script.
 - The script creates a directory at `~/pandoc-md2pdf-web`.
 - It downloads the necessary `docker-compose.yml` and `.env` files into that directory.
@@ -107,6 +111,7 @@ curl -sSL https://raw.githubusercontent.com/clayauld/pandoc-md2pdf-web/main/inst
 After installation, the application will be running at **http://localhost:8080**.
 
 To stop the application, run:
+
 ```bash
 cd ~/pandoc-md2pdf-web && docker compose down
 ```
@@ -116,6 +121,7 @@ cd ~/pandoc-md2pdf-web && docker compose down
 If you want to modify the code, you'll need to clone the repository:
 
 1. **Clone the repository**
+
 ```bash
 git clone https://github.com/clayauld/pandoc-md2pdf-web.git
 cd pandoc-md2pdf-web
@@ -186,10 +192,12 @@ Let's say you have a file named `meeting-notes.md`:
 # Meeting Notes - Q4 Planning
 
 ## Attendees
+
 - Alice (Engineering)
 - Bob (Product)
 
 ## Discussion Points
+
 - Feature roadmap for next quarter
 - Resource allocation
 ```
@@ -231,6 +239,7 @@ The application provides a REST API for programmatic access, perfect for automat
 
 `200` (`application/json`)
 : Successfully queued conversion(s). Returns:
+
 ```json
 {
   "id": "unique-job-id",
@@ -303,22 +312,22 @@ with open('document.md', 'rb') as f:
         'watermark': 'true',
         'watermarkText': 'INTERNAL USE ONLY'
     }
-    
+
     response = requests.post(
         'http://localhost:8080/convert',
         files=files,
         data=data
     )
-    
+
     if response.status_code == 200:
         result = response.json()
         job_id = result['id']
         pdf_filename = result['results'][0]['name']
-        
+
         # Step 2: Download the PDF
         download_url = f'http://localhost:8080/download/{job_id}/{pdf_filename}'
         pdf_response = requests.get(download_url)
-        
+
         if pdf_response.status_code == 200:
             with open('document.pdf', 'wb') as pdf_file:
                 pdf_file.write(pdf_response.content)
@@ -332,35 +341,39 @@ with open('document.md', 'rb') as f:
 #### Example 4: Using JavaScript (Node.js with axios)
 
 ```javascript
-const axios = require('axios');
-const FormData = require('form-data');
-const fs = require('fs');
+const axios = require("axios");
+const FormData = require("form-data");
+const fs = require("fs");
 
 async function convertToPDF() {
   const form = new FormData();
-  form.append('files', fs.createReadStream('document.md'));
-  form.append('watermark', 'true');
-  form.append('watermarkText', 'DRAFT');
+  form.append("files", fs.createReadStream("document.md"));
+  form.append("watermark", "true");
+  form.append("watermarkText", "DRAFT");
 
   try {
     // Step 1: Upload and convert
-    const convertResponse = await axios.post('http://localhost:8080/convert', form, {
-      headers: form.getHeaders()
-    });
-    
+    const convertResponse = await axios.post(
+      "http://localhost:8080/convert",
+      form,
+      {
+        headers: form.getHeaders(),
+      },
+    );
+
     const { id, results } = convertResponse.data;
     const pdfFilename = results[0].name;
-    
+
     // Step 2: Download the PDF
     const downloadUrl = `http://localhost:8080/download/${id}/${pdfFilename}`;
     const pdfResponse = await axios.get(downloadUrl, {
-      responseType: 'stream'
+      responseType: "stream",
     });
-    
-    pdfResponse.data.pipe(fs.createWriteStream('document.pdf'));
-    console.log('✅ PDF generated successfully!');
+
+    pdfResponse.data.pipe(fs.createWriteStream("document.pdf"));
+    console.log("✅ PDF generated successfully!");
   } catch (error) {
-    console.error('❌ Error:', error.response?.data || error.message);
+    console.error("❌ Error:", error.response?.data || error.message);
   }
 }
 
@@ -374,6 +387,7 @@ convertToPDF();
 **Purpose**: Check if the service is running (useful for container orchestration, monitoring, load balancers)
 
 **Response**:
+
 ```json
 {
   "ok": true
@@ -381,6 +395,7 @@ convertToPDF();
 ```
 
 **Example**:
+
 ```bash
 curl http://localhost:8080/healthz
 # Returns: {"ok":true}
@@ -397,10 +412,12 @@ The application provides endpoints for managing custom Lua filters that can be u
 **Purpose**: Retrieve the default Lua filter code used by the application
 
 **Response**:
+
 - `200` (`text/plain`) - Returns the Lua filter code as plain text
 - Rate limited to 20 requests per minute per IP
 
 **Example**:
+
 ```bash
 curl http://localhost:8080/api/filter/default
 # Returns the default filter.lua content
@@ -418,6 +435,7 @@ curl http://localhost:8080/api/filter/default
 : Returns the custom filter configuration.
 
 If a custom filter is configured, it returns an object with its details:
+
 ```json
 {
   "name": "custom-filter",
@@ -428,6 +446,7 @@ If a custom filter is configured, it returns an object with its details:
 ```
 
 If no custom filter is configured, it returns:
+
 ```json
 {
   "enabled": false
@@ -437,6 +456,7 @@ If no custom filter is configured, it returns:
 - Rate limited to 20 requests per minute per IP
 
 **Example**:
+
 ```bash
 curl http://localhost:8080/api/filter/custom
 ```
@@ -453,18 +473,21 @@ curl http://localhost:8080/api/filter/custom
 
 `name`
 : **String** (Conditionally required) - Filter name (sanitized for filename)
-  - **Required** when `enabled` is `true` or not provided (creating/enabling a filter)
-  - **Optional** when `enabled` is `false` (will use existing filter name if omitted)
+
+- **Required** when `enabled` is `true` or not provided (creating/enabling a filter)
+- **Optional** when `enabled` is `false` (will use existing filter name if omitted)
 
 `code`
 : **String** (Conditionally required) - Lua filter code
-  - **Required** when `enabled` is `true` or not provided (creating/enabling a filter)
-  - **Optional** when `enabled` is `false` (filter file won't be updated if omitted)
+
+- **Required** when `enabled` is `true` or not provided (creating/enabling a filter)
+- **Optional** when `enabled` is `false` (filter file won't be updated if omitted)
 
 `mode`
 : **String** (Optional, default: `additional`) - Filter mode:
-  - `"override"` - Replace the default filter
-  - `"additional"` - Apply after the default filter
+
+- `"override"` - Replace the default filter
+- `"additional"` - Apply after the default filter
 
 `enabled`
 : **Boolean** (Optional, default: `true`) - Whether the filter is enabled
@@ -473,6 +496,7 @@ curl http://localhost:8080/api/filter/custom
 
 `200` (`application/json`)
 : Success:
+
 ```json
 {
   "success": true,
@@ -491,6 +515,7 @@ curl http://localhost:8080/api/filter/custom
 **Examples**:
 
 Creating or enabling a filter:
+
 ```bash
 curl -X POST http://localhost:8080/api/filter/save \
   -H "Content-Type: application/json" \
@@ -503,6 +528,7 @@ curl -X POST http://localhost:8080/api/filter/save \
 ```
 
 Disabling a filter (name and code are optional):
+
 ```bash
 curl -X POST http://localhost:8080/api/filter/save \
   -H "Content-Type: application/json" \
@@ -526,6 +552,7 @@ You can customize the application behavior using environment variables:
 : **Default**: `production` - Set to `development` for verbose logging
 
 **Example: Running on a different port**
+
 ```bash
 docker run --rm -p 3000:3000 -e PORT=3000 ghcr.io/clayauld/pandoc-md2pdf-web:latest
 ```
@@ -586,6 +613,7 @@ services:
 Restart the container (`docker compose up -d --force-recreate`) to apply the changes. The application will now use your local files for the conversion process.
 
 **Note**: Ensure that your mounted files have the correct permissions for the container to read them. If you encounter permission issues, make sure the files are readable:
+
 ```bash
 chmod +r ./my_assets/*
 ```
@@ -612,12 +640,15 @@ The generator uses **LiteLLM** or any OpenAI-compatible API.
 - `LLM_MODEL`: The model to use (default: `gpt-3.5-turbo`).
 
 **Usage:**
+
 1. Switch to the "Meeting Notes" tab.
 2. Upload a **Transcript** (required).
-3. Optionally upload an **Agenda**, **Past Minutes (Context)**, or a **Template**.
-4. Click "Generate Meeting Notes".
-5. Edit the generated Markdown in the live editor.
-6. Click "Convert to PDF" to generate the final PDF document.
+3. Optionally provide an **Agenda** (by uploading a file or pasting text directly).
+4. Optionally provide an **Attendance** list (by pasting text).
+5. Optionally upload **Past Minutes (Context)**, or a **Template**.
+6. Click "Generate Meeting Notes".
+7. Edit the generated Markdown in the live editor.
+8. Click "Convert to PDF" to generate the final PDF document.
 
 ---
 
@@ -639,6 +670,7 @@ The Docker image includes the **Libertinus** font family by default. To use your
      ```
 
 2. **Update the font configuration** in `server/index.js`:
+
    ```javascript
    '-V', 'mainfont=My Font Family Name',
    '-V', 'monofont=My Mono Font',
@@ -650,6 +682,7 @@ The Docker image includes the **Libertinus** font family by default. To use your
    ```
 
 The Dockerfile automatically:
+
 - Installs `fontconfig` for font management
 - Copies fonts from `server/fonts/` to `/usr/local/share/fonts/custom/`
 - Refreshes the font cache with `fc-cache -fv`
@@ -657,6 +690,7 @@ The Dockerfile automatically:
 ### Finding Font Names
 
 To find the exact name XeLaTeX expects, inside the container run:
+
 ```bash
 docker compose exec web fc-list | grep "YourFont"
 ```
@@ -664,6 +698,7 @@ docker compose exec web fc-list | grep "YourFont"
 ### Included Fonts
 
 The Libertinus font family provides:
+
 - **Libertinus Serif** - Body text (Regular, Bold, Italic, Bold Italic, Semibold)
 - **Libertinus Sans** - Sans-serif variant
 - **Libertinus Mono** - Code blocks and monospace text
@@ -674,6 +709,7 @@ The Libertinus font family provides:
 ## 🛠️ Development Setup
 
 ### Prerequisites for Development
+
 - Docker & Docker Compose
 - A text editor (VS Code, Sublime Text, etc.)
 - Basic knowledge of Node.js/Express (for backend modifications)
@@ -681,12 +717,14 @@ The Libertinus font family provides:
 ### Running in Development Mode
 
 1. **Clone the repository**:
+
 ```bash
 git clone https://github.com/clayauld/pandoc-md2pdf-web.git
 cd pandoc-md2pdf-web
 ```
 
 2. **Start with hot-reload enabled**:
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.override.yml up --build
 ```
@@ -701,11 +739,13 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml up --build
 ### Viewing Logs
 
 **View live logs**:
+
 ```bash
 docker compose logs -f web
 ```
 
 **View only errors**:
+
 ```bash
 docker compose logs web | grep -i error
 ```
@@ -720,15 +760,18 @@ docker compose logs web | grep -i error
 ### Making Changes
 
 **To modify the UI**:
+
 - Edit files in `public/` (HTML, CSS, JS)
 
 **To change conversion logic**:
+
 - Edit `server/index.js` (Pandoc arguments, routes)
 - Edit `server/scripts/convert_to_pdf.sh` (shell script wrapper)
 - Edit `server/scripts/filter.lua` (Lua filter)
 - Edit `server/scripts/watermark.tex` (LaTeX watermark template)
 
 **To add dependencies**:
+
 - Update `server/package.json`
 - Rebuild: `docker compose up --build`
 
@@ -743,6 +786,7 @@ docker compose logs web | grep -i error
 **Problem**: Your custom font isn't showing up in the PDF.
 
 **Solutions**:
+
 1. Ensure font files (`.otf` or `.ttf`) are in `server/fonts/` before building
 2. Check the font family name matches XeLaTeX expectations:
    ```bash
@@ -759,6 +803,7 @@ docker compose logs web | grep -i error
 **Problem**: Conversion fails with errors about missing LaTeX packages.
 
 **Solution**: Extend the `Dockerfile` to install additional packages:
+
 ```dockerfile
 RUN apt-get update && apt-get install -y \
     texlive-latex-extra \
@@ -776,16 +821,19 @@ Then rebuild: `docker compose up --build`
 **Problem**: Specific Markdown file fails to convert.
 
 **Troubleshooting steps**:
+
 1. **Check the logs**:
    ```bash
    docker compose logs -f web
    ```
-   
 2. **Test with a simple Markdown file**:
+
    ```markdown
    # Test
+
    This is a test.
    ```
+
    If this works, the issue is with your document content.
 
 3. **Common causes**:
@@ -801,12 +849,15 @@ Then rebuild: `docker compose up --build`
 **Problem**: Another application is using port 8080.
 
 **Solution**: Use a different port:
+
 ```bash
 docker run --rm -p 9090:8080 ghcr.io/clayauld/pandoc-md2pdf-web:latest
 ```
+
 Then access at: http://localhost:9090
 
 Or modify `docker-compose.yml`:
+
 ```yaml
 ports:
   - "9090:8080"
@@ -817,6 +868,7 @@ ports:
 **Problem**: Docker build errors.
 
 **Solutions**:
+
 1. Ensure Docker is up to date: `docker --version`
 2. Clean Docker build cache:
    ```bash
@@ -832,6 +884,7 @@ ports:
 **Note**: The published image targets `linux/amd64`. It will run on ARM Macs via emulation (Rosetta) but may be slower.
 
 **Solution for better performance**: Build natively:
+
 ```bash
 docker compose build --build-arg BUILDPLATFORM=linux/arm64
 ```
@@ -839,6 +892,7 @@ docker compose build --build-arg BUILDPLATFORM=linux/arm64
 ### Getting Help
 
 If you encounter other issues:
+
 1. Check existing [GitHub Issues](https://github.com/clayauld/pandoc-md2pdf-web/issues)
 2. Review container logs: `docker compose logs web`
 3. Open a new issue with:
@@ -860,7 +914,7 @@ This application is designed for trusted environments. Security considerations:
 ✅ **Filename sanitization**: Special characters and path traversal attempts blocked  
 ✅ **Isolated temp directories**: Each request gets a unique temporary directory  
 ✅ **Cleanup**: Temporary files removed after PDF generation  
-✅ **Rate limiting**: API endpoints protected with rate limiting (20 requests/minute for filter endpoints, 5/minute for conversions)  
+✅ **Rate limiting**: API endpoints protected with rate limiting (20 requests/minute for filter endpoints, 5/minute for conversions)
 
 ### Security Recommendations
 
@@ -876,7 +930,7 @@ This application is designed for trusted environments. Security considerations:
 
 ❌ Malicious LaTeX code injection (LaTeX can execute system commands)  
 ❌ Resource exhaustion from extremely complex documents  
-❌ Malicious Lua filter code (custom filters have full access to document processing)  
+❌ Malicious Lua filter code (custom filters have full access to document processing)
 
 **Best Practice**: Treat this as an internal tool for trusted users, or add authentication and monitoring for production deployments.
 
@@ -921,19 +975,20 @@ This project is licensed under the GNU Affero General Public License v3.0. See t
 
 ### What This Means
 
-*   **You can use this software freely**
-*   **You can modify and redistribute it**
-*   **You can use it commercially**
-*   **If you modify and deploy this software (even as a web service), you must**:
-    *   Make your source code available
-    *   License modifications under AGPL-3.0
-    *   Provide a link to the source code to users
+- **You can use this software freely**
+- **You can modify and redistribute it**
+- **You can use it commercially**
+- **If you modify and deploy this software (even as a web service), you must**:
+  - Make your source code available
+  - License modifications under AGPL-3.0
+  - Provide a link to the source code to users
 
 ### Contributing
 
 Contributions are welcome! By contributing, you agree to license your contributions under AGPL-3.0-only.
 
 **To contribute**:
+
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
