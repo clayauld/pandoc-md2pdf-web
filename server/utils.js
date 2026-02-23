@@ -43,7 +43,7 @@ function stripTrailingDelimiters(name) {
     name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
   // Remove trailing underscores, dots, or hyphens from a base filename
-  let end = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  let end = name.length;
   while (end > 0) {
     const ch = name.charAt(end - 1);
     if (ch === '_' || ch === '-' || ch === '.') {
