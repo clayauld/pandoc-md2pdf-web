@@ -7,6 +7,12 @@ const multer = require('multer');
 const mime = require('mime-types');
 const { nanoid } = require('nanoid');
 const archiver = require('archiver');
+const {
+  parseTtl,
+  sanitizeBaseName,
+  stripTrailingDelimiters,
+  collapseUnderscores
+} = require('./utils');
 
 // Rate limiting for download endpoints
 const rateLimit = require('express-rate-limit');
@@ -74,22 +80,7 @@ async function saveHistory(updateFn) {
 }
 
 loadHistory().catch(err => console.error('Initialization failed:', err));
-
-function parseTtl(ttl) {
-  if (!ttl) return 3600 * 1000; // Default: 1 hour
-  const unit = ttl.slice(-1).toLowerCase();
-  const value = parseInt(ttl.slice(0, -1), 10);
-  if (isNaN(value)) return 3600 * 1000;
-
-  switch (unit) {
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 3600 * 1000;
-    case 'd': return value * 24 * 3600 * 1000;
-    case 'w': return value * 7 * 24 * 3600 * 1000;
-    case 'M': return value * 30 * 24 * 3600 * 1000; // Approx. 30 days
-    default: return 3600 * 1000;
-  }
-}
+loadCustomFilterConfig().catch(err => console.error('Custom filter initialization failed:', err));
 
 // Time to keep history and files, in milliseconds.
 const HISTORY_EXPIRATION_MS = parseTtl(process.env.HISTORY_TTL);
@@ -113,68 +104,14 @@ const upload = multer({
   },
 });
 
-const MAX_FILE_NAME_LENGTH = 255;
-
-function sanitizeBaseName(name) {
-  // Ensure name is a string, truncate to a reasonable length (e.g., 255)
-  name = typeof name === 'string' ? name : String(name);
-  if (name.length > 255) {
-    name = name.slice(0, 255);
-  }
-  // Replace any disallowed character with underscore without regex backtracking
-  let out = '';
-  for (let i = 0; i < name.length; i++) {
-    const ch = name[i];
-    const isAllowed =
-      (ch >= 'a' && ch <= 'z') ||
-      (ch >= 'A' && ch <= 'Z') ||
-      (ch >= '0' && ch <= '9') ||
-      ch === '.' || ch === '_' || ch === '-';
-    out += isAllowed ? ch : '_';
-  }
-  return out;
-}
-
-function stripTrailingDelimiters(name) {
-  name = typeof name === 'string' ? name : String(name);
-  // Remove trailing underscores, dots, or hyphens from a base filename
-  let end = name.length;
-  while (end > 0) {
-    const ch = name.charAt(end - 1);
-    if (ch === '_' || ch === '-' || ch === '.') {
-      end--;
-    } else {
-      break;
-    }
-  }
-  return name.slice(0, end);
-}
-function collapseUnderscores(name) {
-  // Ensure string input and cap effective length
-  name = typeof name === 'string' ? name : String(name);
-  if (!Number.isSafeInteger(name.length) || name.length > MAX_FILE_NAME_LENGTH) {
-    name = name.slice(0, MAX_FILE_NAME_LENGTH);
-  }
-  // Collapse multiple underscores into a single underscore without regex
-  let out = '';
-  let prevUnderscore = false;
-  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
-  for (let i = 0; i < max; i++) {
-    const ch = name[i];
-    if (ch === '_') {
-      if (!prevUnderscore) out += '_';
-      prevUnderscore = true;
-    } else {
-      out += ch;
-      prevUnderscore = false;
-    }
-  }
-  return out;
-}
 
 // Custom filter directory path
 const CUSTOM_FILTER_DIR = path.join(__dirname, 'tmp', 'custom-filters');
 const CUSTOM_FILTER_CONFIG_FILE = path.join(CUSTOM_FILTER_DIR, '.config.json');
+
+// In-memory cache for custom filter config to avoid redundant I/O
+// undefined: not loaded, null: no config or invalid, object: valid config
+let cachedCustomFilterConfig = undefined;
 
 // Promise chain to serialize filter save operations (prevents race conditions)
 let filterSaveChain = Promise.resolve();
@@ -198,43 +135,63 @@ function getDefaultFilterPath() {
 }
 
 /**
+ * Validates the custom filter config object.
+ * @param {object} config - The config object to validate.
+ * @returns {boolean} True if valid, false otherwise.
+ */
+function validateCustomFilterConfig(config) {
+  // Validate config structure
+  if (!config || typeof config !== 'object') {
+    console.warn(`Invalid config file format: expected object, got ${typeof config}`);
+    return false;
+  }
+
+  // Validate required properties with correct types
+  if (typeof config.name !== 'string' || !config.name.trim()) {
+    console.warn('Invalid config: missing or invalid "name" property');
+    return false;
+  }
+
+  if (typeof config.mode !== 'string' || (config.mode !== 'override' && config.mode !== 'additional')) {
+    console.warn('Invalid config: missing or invalid "mode" property (must be "override" or "additional")');
+    return false;
+  }
+
+  if (typeof config.enabled !== 'boolean') {
+    console.warn('Invalid config: missing or invalid "enabled" property (must be boolean)');
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Load custom filter config from disk
  * @returns {Promise<{name: string, mode: string, enabled: boolean} | null>}
  */
 async function loadCustomFilterConfig() {
+  if (cachedCustomFilterConfig !== undefined) {
+    return cachedCustomFilterConfig;
+  }
+
   try {
     const configData = await fsp.readFile(CUSTOM_FILTER_CONFIG_FILE, 'utf8');
     const config = JSON.parse(configData);
     
-    // Validate config structure
-    if (!config || typeof config !== 'object') {
-      console.warn(`Invalid config file format: expected object, got ${typeof config}`);
+    if (!validateCustomFilterConfig(config)) {
+      cachedCustomFilterConfig = null;
       return null;
     }
     
-    // Validate required properties with correct types
-    if (typeof config.name !== 'string' || !config.name.trim()) {
-      console.warn('Invalid config: missing or invalid "name" property');
-      return null;
-    }
-    
-    if (typeof config.mode !== 'string' || (config.mode !== 'override' && config.mode !== 'additional')) {
-      console.warn('Invalid config: missing or invalid "mode" property (must be "override" or "additional")');
-      return null;
-    }
-    
-    if (typeof config.enabled !== 'boolean') {
-      console.warn('Invalid config: missing or invalid "enabled" property (must be boolean)');
-      return null;
-    }
-    
+    cachedCustomFilterConfig = config;
     return config;
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      return null;
+    if (err.code !== 'ENOENT') {
+      // JSON parse errors or other errors
+      console.error('Error loading custom filter config:', err);
     }
-    // JSON parse errors or other errors
-    console.error('Error loading custom filter config:', err);
+    // Cache null to prevent redundant I/O even on errors
+    cachedCustomFilterConfig = null;
     return null; // Return null instead of throwing to allow system to continue
   }
 }
@@ -244,8 +201,14 @@ async function loadCustomFilterConfig() {
  * @param {object} config - Config object with name, mode, enabled
  */
 async function saveCustomFilterConfig(config) {
+  // Validate before saving to ensure cache and disk remain consistent with rules
+  if (!validateCustomFilterConfig(config)) {
+    throw new Error('Invalid custom filter configuration');
+  }
   await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
   await fsp.writeFile(CUSTOM_FILTER_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+  // Update cache after successful write
+  cachedCustomFilterConfig = config;
 }
 
 /**
@@ -399,99 +362,100 @@ app.get('/api/filter/custom', filterLimiter, async (req, res) => {
   }
 });
 
+/**
+ * Validates the filter request data and returns a sanitized name if valid.
+ * @param {object} body The request body
+ * @param {object|null} existingConfig The current filter configuration
+ * @returns {string} The sanitized name
+ * @throws {Error} if validation fails (with a message suitable for the API response)
+ */
+function validateAndSanitizeFilterRequest(body, existingConfig) {
+  const { name, code, mode, enabled } = body;
+
+  if (enabled !== undefined && typeof enabled !== 'boolean') {
+    throw new Error('The `enabled` field must be a boolean if provided');
+  }
+
+  if (mode && !['override', 'additional'].includes(mode)) {
+    throw new Error('Filter mode must be "override" or "additional"');
+  }
+
+  if (enabled === false) {
+    if (name && typeof name === 'string' && name.trim() !== '') {
+      const sanitized = sanitizeBaseName(name.trim());
+      if (!sanitized) throw new Error('Invalid filter name');
+      return sanitized;
+    }
+    if (!existingConfig || !existingConfig.name) {
+      throw new Error('No existing filter found to disable');
+    }
+    return existingConfig.name;
+  }
+
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    throw new Error('Filter name is required');
+  }
+  if (!code || typeof code !== 'string' || code.trim() === '') {
+    throw new Error('Filter code is required and cannot be empty');
+  }
+  const sanitized = sanitizeBaseName(name.trim());
+  if (!sanitized) throw new Error('Invalid filter name');
+  return sanitized;
+}
+
+/**
+ * Persists the custom filter files and configuration to disk.
+ * @param {string} sanitizedName Sanitized name for the filter
+ * @param {object} body The request body containing code, mode, and enabled status
+ * @param {object|null} existingConfig The previous filter configuration
+ */
+async function persistCustomFilter(sanitizedName, body, existingConfig) {
+  const { code, mode, enabled } = body;
+
+  // If the filter name is changing, delete the old file to prevent orphans
+  if (existingConfig?.name && existingConfig.name !== sanitizedName) {
+    const oldFilterPath = path.join(CUSTOM_FILTER_DIR, `${existingConfig.name}.lua`);
+    try {
+      await fsp.unlink(oldFilterPath);
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        console.warn(`Could not delete old filter file: ${oldFilterPath}`, err);
+      }
+    }
+  }
+
+  await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
+
+  // Save filter file (only if code is provided and non-empty)
+  if (code && typeof code === 'string' && code.trim() !== '') {
+    const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${sanitizedName}.lua`);
+    await fsp.writeFile(filterFilePath, code, 'utf8');
+  }
+
+  // Save config
+  const updatedConfig = {
+    name: sanitizedName,
+    mode: mode || existingConfig?.mode || 'additional',
+    enabled: enabled !== undefined ? enabled : (existingConfig?.enabled !== undefined ? existingConfig.enabled : true)
+  };
+  await saveCustomFilterConfig(updatedConfig);
+}
+
 // POST /api/filter/save - Save a custom filter
 app.post('/api/filter/save', filterLimiter, async (req, res) => {
   try {
     // Use saveCustomFilter to serialize this operation and prevent race conditions
     await saveCustomFilter(async () => {
-      const { name, code, mode, enabled } = req.body;
+      const existingConfig = await loadCustomFilterConfig();
 
-      // Validate enabled field type
-      if (enabled !== undefined && typeof enabled !== 'boolean') {
-        res.status(400).json({ error: 'The `enabled` field must be a boolean if provided' });
-        return;
+      let sanitizedName;
+      try {
+        sanitizedName = validateAndSanitizeFilterRequest(req.body, existingConfig);
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
       }
 
-      // Validate mode if provided
-      if (mode && !['override', 'additional'].includes(mode)) {
-        res.status(400).json({ error: 'Filter mode must be "override" or "additional"' });
-        return;
-      }
-
-      // When disabling (enabled=false), allow empty name/code
-      // Load existing config to get the name if not provided
-      let sanitizedName = '';
-      let filterConfig = null;
-
-      if (enabled === false) {
-        // Disabling: allow empty name/code, load existing config if name not provided
-        if (name && typeof name === 'string' && name.trim() !== '') {
-          sanitizedName = sanitizeBaseName(name.trim());
-          if (!sanitizedName || sanitizedName.length === 0) {
-            res.status(400).json({ error: 'Invalid filter name' });
-            return;
-          }
-        } else {
-          // Load existing config to get the name
-          filterConfig = await loadCustomFilterConfig();
-          if (!filterConfig || !filterConfig.name) {
-            res.status(400).json({ error: 'No existing filter found to disable' });
-            return;
-          }
-          sanitizedName = filterConfig.name;
-        }
-      } else {
-        // Enabling or creating: require name and code
-        if (!name || typeof name !== 'string' || name.trim() === '') {
-          res.status(400).json({ error: 'Filter name is required' });
-          return;
-        }
-        if (!code || typeof code !== 'string' || code.trim() === '') {
-          res.status(400).json({ error: 'Filter code is required and cannot be empty' });
-          return;
-        }
-        sanitizedName = sanitizeBaseName(name.trim());
-        if (!sanitizedName || sanitizedName.length === 0) {
-          res.status(400).json({ error: 'Invalid filter name' });
-          return;
-        }
-      }
-
-      // Load existing config if not already loaded
-      if (!filterConfig) {
-        filterConfig = await loadCustomFilterConfig();
-      }
-
-      // Create custom filter directory if it doesn't exist
-      // If the filter name is changing, delete the old file to prevent orphans
-      if (filterConfig?.name && filterConfig.name !== sanitizedName) {
-        const oldFilterPath = path.join(CUSTOM_FILTER_DIR, `${filterConfig.name}.lua`);
-        try {
-          await fsp.unlink(oldFilterPath);
-        } catch (err) {
-          // It's okay if the file doesn't exist, but warn on other errors.
-          if (err.code !== 'ENOENT') {
-            console.warn(`Could not delete old filter file: ${oldFilterPath}`, err);
-          }
-        }
-      }
-
-      await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
-
-      // Save filter file (only if code is provided and non-empty)
-      const filterFilePath = path.join(CUSTOM_FILTER_DIR, `${sanitizedName}.lua`);
-      if (code && typeof code === 'string' && code.trim() !== '') {
-        await fsp.writeFile(filterFilePath, code, 'utf8');
-      }
-
-      // Save config
-      const updatedConfig = {
-        name: sanitizedName,
-        mode: mode || filterConfig?.mode || 'additional',
-        enabled: enabled !== undefined ? enabled : (filterConfig?.enabled !== undefined ? filterConfig.enabled : true)
-      };
-      await saveCustomFilterConfig(updatedConfig);
-
+      await persistCustomFilter(sanitizedName, req.body, existingConfig);
       res.json({ success: true, name: sanitizedName });
     });
   } catch (err) {
