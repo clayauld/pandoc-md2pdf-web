@@ -176,6 +176,10 @@ function collapseUnderscores(name) {
 const CUSTOM_FILTER_DIR = path.join(__dirname, 'tmp', 'custom-filters');
 const CUSTOM_FILTER_CONFIG_FILE = path.join(CUSTOM_FILTER_DIR, '.config.json');
 
+// In-memory cache for custom filter config to avoid redundant I/O
+let cachedCustomFilterConfig = null;
+let customFilterConfigLoaded = false;
+
 // Promise chain to serialize filter save operations (prevents race conditions)
 let filterSaveChain = Promise.resolve();
 
@@ -198,43 +202,67 @@ function getDefaultFilterPath() {
 }
 
 /**
+ * Validates the custom filter config object.
+ * @param {object} config - The config object to validate.
+ * @returns {boolean} True if valid, false otherwise.
+ */
+function validateCustomFilterConfig(config) {
+  // Validate config structure
+  if (!config || typeof config !== 'object') {
+    console.warn(`Invalid config file format: expected object, got ${typeof config}`);
+    return false;
+  }
+
+  // Validate required properties with correct types
+  if (typeof config.name !== 'string' || !config.name.trim()) {
+    console.warn('Invalid config: missing or invalid "name" property');
+    return false;
+  }
+
+  if (typeof config.mode !== 'string' || (config.mode !== 'override' && config.mode !== 'additional')) {
+    console.warn('Invalid config: missing or invalid "mode" property (must be "override" or "additional")');
+    return false;
+  }
+
+  if (typeof config.enabled !== 'boolean') {
+    console.warn('Invalid config: missing or invalid "enabled" property (must be boolean)');
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Load custom filter config from disk
  * @returns {Promise<{name: string, mode: string, enabled: boolean} | null>}
  */
 async function loadCustomFilterConfig() {
+  if (customFilterConfigLoaded) {
+    return cachedCustomFilterConfig;
+  }
+
   try {
     const configData = await fsp.readFile(CUSTOM_FILTER_CONFIG_FILE, 'utf8');
     const config = JSON.parse(configData);
     
-    // Validate config structure
-    if (!config || typeof config !== 'object') {
-      console.warn(`Invalid config file format: expected object, got ${typeof config}`);
+    if (!validateCustomFilterConfig(config)) {
+      cachedCustomFilterConfig = null;
+      customFilterConfigLoaded = true;
       return null;
     }
     
-    // Validate required properties with correct types
-    if (typeof config.name !== 'string' || !config.name.trim()) {
-      console.warn('Invalid config: missing or invalid "name" property');
-      return null;
-    }
-    
-    if (typeof config.mode !== 'string' || (config.mode !== 'override' && config.mode !== 'additional')) {
-      console.warn('Invalid config: missing or invalid "mode" property (must be "override" or "additional")');
-      return null;
-    }
-    
-    if (typeof config.enabled !== 'boolean') {
-      console.warn('Invalid config: missing or invalid "enabled" property (must be boolean)');
-      return null;
-    }
-    
+    cachedCustomFilterConfig = config;
+    customFilterConfigLoaded = true;
     return config;
   } catch (err) {
     if (err.code === 'ENOENT') {
+      cachedCustomFilterConfig = null;
+      customFilterConfigLoaded = true;
       return null;
     }
     // JSON parse errors or other errors
     console.error('Error loading custom filter config:', err);
+    // Don't cache on unexpected errors to allow retry
     return null; // Return null instead of throwing to allow system to continue
   }
 }
@@ -244,8 +272,15 @@ async function loadCustomFilterConfig() {
  * @param {object} config - Config object with name, mode, enabled
  */
 async function saveCustomFilterConfig(config) {
+  // Validate before saving to ensure cache and disk remain consistent with rules
+  if (!validateCustomFilterConfig(config)) {
+    throw new Error('Invalid custom filter configuration');
+  }
   await fsp.mkdir(CUSTOM_FILTER_DIR, { recursive: true });
   await fsp.writeFile(CUSTOM_FILTER_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+  // Update cache after successful write
+  cachedCustomFilterConfig = config;
+  customFilterConfigLoaded = true;
 }
 
 /**
