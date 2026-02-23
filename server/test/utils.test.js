@@ -55,4 +55,11 @@ describe('stripTrailingDelimiters', () => {
     assert.strictEqual(stripTrailingDelimiters('.'), '');
     assert.strictEqual(stripTrailingDelimiters('-'), '');
   });
+
+  test('should truncate very long input', () => {
+    const longInput = 'a'.repeat(300) + '___';
+    const result = stripTrailingDelimiters(longInput);
+    assert.strictEqual(result.length, 255);
+    assert.strictEqual(result, 'a'.repeat(255));
+  });
 });

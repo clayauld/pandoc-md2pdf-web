@@ -19,12 +19,13 @@ function parseTtl(ttl) {
 function sanitizeBaseName(name) {
   // Ensure name is a string, truncate to a reasonable length (e.g., 255)
   name = typeof name === 'string' ? name : String(name);
-  if (name.length > 255) {
-    name = name.slice(0, 255);
+  if (name.length > MAX_FILE_NAME_LENGTH) {
+    name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
-  for (let i = 0; i < name.length; i++) {
+  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  for (let i = 0; i < max; i++) {
     const ch = name[i];
     const isAllowed =
       (ch >= 'a' && ch <= 'z') ||
@@ -38,8 +39,11 @@ function sanitizeBaseName(name) {
 
 function stripTrailingDelimiters(name) {
   name = typeof name === 'string' ? name : String(name);
+  if (name.length > MAX_FILE_NAME_LENGTH) {
+    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  }
   // Remove trailing underscores, dots, or hyphens from a base filename
-  let end = name.length;
+  let end = Math.min(name.length, MAX_FILE_NAME_LENGTH);
   while (end > 0) {
     const ch = name.charAt(end - 1);
     if (ch === '_' || ch === '-' || ch === '.') {
