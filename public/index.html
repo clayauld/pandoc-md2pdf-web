@@ -108,9 +108,24 @@
           </div>
 
           <div class="form-group">
-            <label for="agenda">Agenda (Optional)</label>
-            <input type="file" id="agenda" name="agenda" accept=".txt,.md,.pdf" />
-            <small>Upload the meeting agenda.</small>
+            <label>Agenda (Optional)</label>
+            <div class="input-mode-group">
+              <label><input type="radio" name="agendaMode" value="file" checked> Upload File</label>
+              <label><input type="radio" name="agendaMode" value="text"> Paste Text</label>
+            </div>
+            <div id="agenda-file-input">
+              <input type="file" id="agenda" name="agenda" accept=".txt,.md,.pdf" />
+              <small>Upload the meeting agenda.</small>
+            </div>
+            <div id="agenda-text-input" style="display: none;">
+              <textarea id="agendaText" name="agendaText" rows="6" placeholder="Paste the agenda text here..."></textarea>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="attendanceText">Attendance (Optional)</label>
+            <textarea id="attendanceText" name="attendanceText" rows="4" placeholder="List the attendees here..."></textarea>
+            <small>If not explicitly stated in the transcript, list who attended the meeting.</small>
           </div>
 
           <div class="form-group">

@@ -201,7 +201,11 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
         files.agenda[0].mimetype,
         files.agenda[0].originalname
       );
+    } else if (body.agendaText) {
+      agendaText = body.agendaText;
     }
+
+    let attendanceText = body.attendanceText || '';
 
     let contextText = '';
     if (files.context && files.context[0]) {
@@ -233,7 +237,13 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
       userPrompt += `### Agenda:\n${agendaText}\n\n`;
     }
 
-    userPrompt += `### Transcript:\n${transcriptText}\n\n`;
+    if (attendanceText) {
+      userPrompt += `### Attendance:\n${attendanceText}\n\n`;
+    }
+
+    userPrompt += `### Transcript (Source File: \`${files.transcript[0].originalname}\`):\n`;
+    userPrompt += `*Note: Use the timestamp from the filename (e.g., GMT/UTC time) to determine the correct local date of the meeting if not explicitly stated in the text.*\n\n`;
+    userPrompt += `${transcriptText}\n\n`;
 
     if (contextText) {
       userPrompt += `### Past Minutes (Context):\n${contextText}\n\n`;

@@ -433,6 +433,9 @@
   const templateLibraryInput = document.getElementById('template-library-input');
   const contextLibrarySelect = document.getElementById('contextLibrarySelect');
   const templateLibrarySelect = document.getElementById('templateLibrarySelect');
+  const agendaFileInput = document.getElementById('agenda-file-input');
+  const agendaTextInput = document.getElementById('agenda-text-input');
+  const agendaText = document.getElementById('agendaText');
 
   // Check feature flag
   fetch('/api/config')
@@ -476,6 +479,20 @@
         contextFileInput.style.display = 'none';
         contextLibraryInput.style.display = 'block';
         document.getElementById('context').value = ''; // Reset file input
+      }
+    });
+  });
+
+  document.querySelectorAll('input[name="agendaMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'file') {
+        agendaFileInput.style.display = 'block';
+        agendaTextInput.style.display = 'none';
+        agendaText.value = ''; // Reset text input
+      } else {
+        agendaFileInput.style.display = 'none';
+        agendaTextInput.style.display = 'block';
+        document.getElementById('agenda').value = ''; // Reset file input
       }
     });
   });
@@ -563,18 +580,18 @@
     // Determine which inputs to use based on radio selection
     const contextMode = document.querySelector('input[name="contextMode"]:checked').value;
     const templateMode = document.querySelector('input[name="templateMode"]:checked').value;
+    const agendaMode = document.querySelector('input[name="agendaMode"]:checked').value;
 
     // If using file mode, clear library selection to avoid sending confusing data
     if (contextMode === 'file') {
         formData.delete('contextFile');
+    }
+    
+    // Clear the unused agenda input so the server knows exactly which one to parse
+    if (agendaMode === 'file') {
+        formData.delete('agendaText');
     } else {
-        // If using library mode, clear the file input (FormData might still include it if browser behavior varies, but normally empty file input is fine)
-        // More importantly, we rely on backend logic to prefer file upload if present, so we need to ensure the backend logic is sound.
-        // Actually, my backend logic prefers `req.files.context` if present.
-        // If the user selects "Library" but leaves the file input populated (e.g. they selected a file then switched to library),
-        // we might have a conflict.
-        // To be safe, we should probably clear the file input value when switching modes (I did this in the radio change handler).
-        // So here we just need to ensure we send the right data.
+        formData.delete('agenda');
     }
 
     generateNotesBtn.disabled = true;
