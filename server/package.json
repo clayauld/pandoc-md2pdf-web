@@ -19,5 +19,10 @@
     "nanoid": "^5.0.7",
     "openai": "^4.104.0",
     "pdf-parse": "^1.1.4"
+  },
+  "overrides": {
+    "minimatch": "^10.2.1",
+    "glob": "^13.0.0",
+    "formdata-node": "^6.0.3"
   }
 }
