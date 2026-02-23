@@ -24,7 +24,7 @@ function sanitizeBaseName(name) {
   }
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
-  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  const max = name.length;
   for (let i = 0; i < max; i++) {
     const ch = name[i];
     const isAllowed =
