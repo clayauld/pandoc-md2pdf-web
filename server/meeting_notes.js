@@ -244,9 +244,7 @@ Instructions:
 
     let generatedText = completion.choices[0].message.content || '';
 
-    // Clean up potential markdown code blocks if the LLM adds them despite instructions
-    // Remove ```markdown ... ``` or ``` ... ```
-    generatedText = generatedText.replace(/^```markdown\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+    generatedText = generatedText.replace(/^```(?:�markdown�)?\s*\n?/, '').replace(/\n?```\s*$/, '');
 
     // 5. Return result
     res.json({ markdown: generatedText });
