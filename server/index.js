@@ -361,7 +361,7 @@ app.get('/api/filter/default', filterLimiter, async (req, res) => {
     res.send(content);
   } catch (err) {
     console.error('Error reading default filter:', err);
-    res.status(500).json({ error: 'Failed to read default filter', details: err.message });
+    res.status(500).json({ error: 'Failed to read default filter', details: 'An unexpected error occurred' });
   }
 });
 
@@ -395,7 +395,7 @@ app.get('/api/filter/custom', filterLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error('Error reading custom filter:', err);
-    res.status(500).json({ error: 'Failed to read custom filter', details: err.message });
+    res.status(500).json({ error: 'Failed to read custom filter', details: 'An unexpected error occurred' });
   }
 });
 
@@ -496,7 +496,7 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error('Error saving custom filter:', err);
-    res.status(500).json({ error: 'Failed to save custom filter', details: err.message });
+    res.status(500).json({ error: 'Failed to save custom filter', details: 'An unexpected error occurred' });
   }
 });
 
@@ -607,10 +607,11 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
             success: true
         });
       } catch (err) {
+          console.error(`Error converting file ${file.originalname}:`, err);
           results.push({
               originalName: file.originalname,
               success: false,
-              error: err.message
+              error: 'Conversion failed'
           })
       }
     }
@@ -637,7 +638,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
     if (watermarkPath) {
       try { await fsp.unlink(watermarkPath); } catch (_) {}
     }
-    res.status(500).json({ error: 'Conversion process failed', details: String(err && err.message || err) });
+    res.status(500).json({ error: 'Conversion process failed', details: 'Internal Server Error' });
   }
 });
 
