@@ -28,6 +28,15 @@ const generateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for library endpoints: 20 requests per minute per IP
+const libraryLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many library requests from this IP, please try again later.',
+});
+
 // Multer setup for handling file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -79,7 +88,7 @@ const openai = new OpenAI({
 // --- Library Endpoints ---
 
 // List files in the library
-router.get('/library', async (req, res) => {
+router.get('/library', libraryLimiter, async (req, res) => {
     try {
         const files = await fs.readdir(LIBRARY_DIR);
         res.json(files);
@@ -90,7 +99,7 @@ router.get('/library', async (req, res) => {
 });
 
 // Upload a file to the library
-router.post('/library/upload', upload.single('file'), async (req, res) => {
+router.post('/library/upload', libraryLimiter, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
@@ -105,7 +114,7 @@ router.post('/library/upload', upload.single('file'), async (req, res) => {
 });
 
 // Delete a file from the library
-router.delete('/library/:filename', async (req, res) => {
+router.delete('/library/:filename', libraryLimiter, async (req, res) => {
     try {
         const filename = path.basename(req.params.filename);
         await fs.unlink(path.join(LIBRARY_DIR, filename));
@@ -129,7 +138,7 @@ async function readLibraryFile(filename) {
         const mimeType = mime.lookup(filePath) || 'application/octet-stream';
         return await extractText(buffer, mimeType, filename);
     } catch (err) {
-        console.warn(`Failed to read library file ${filename}:`, err.message);
+        console.warn('Failed to read library file %s:', filename, err.message);
         return '';
     }
 }
