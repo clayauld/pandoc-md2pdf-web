@@ -13,6 +13,24 @@ const fs = require('fs/promises');
 const ENABLE_MEETING_NOTES = process.env.ENABLE_MEETING_NOTES === 'true';
 const LLM_API_BASE = process.env.LLM_API_BASE;
 const LLM_API_KEY = process.env.LLM_API_KEY;
+
+/**
+ * Determine if a given base URL points to an OpenAI-hosted endpoint.
+ * This parses the URL and inspects the hostname rather than doing a
+ * substring check on the full URL string.
+ */
+function isOpenAIBaseUrl(baseUrl) {
+  if (!baseUrl) return false;
+  try {
+    const parsed = new URL(baseUrl);
+    const host = parsed.hostname.toLowerCase();
+    // Treat api.openai.com and any subdomains of openai.com as OpenAI.
+    return host === 'api.openai.com' || host.endsWith('.openai.com');
+  } catch (e) {
+    // If the URL is invalid, do not treat it as an OpenAI host.
+    return false;
+  }
+}
 const LLM_MODEL = process.env.LLM_MODEL || 'gpt-3.5-turbo'; // Default model if not specified
 const LIBRARY_DIR = path.join(__dirname, 'data', 'library');
 
@@ -155,7 +173,7 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
   }
 
   // Ensure at least one config is present if we are going to try to call the API
-  if (!process.env.LLM_API_BASE || (!process.env.LLM_API_KEY && process.env.LLM_API_BASE.includes('openai.com'))) {
+  if (!process.env.LLM_API_BASE || (!process.env.LLM_API_KEY && isOpenAIBaseUrl(process.env.LLM_API_BASE))) {
      return res.status(500).json({ error: 'LLM configuration missing (API Key or Base URL).' });
   }
 
