@@ -237,7 +237,7 @@ function validateCustomFilterConfig(config) {
  * @returns {Promise<{name: string, mode: string, enabled: boolean} | null>}
  */
 async function loadCustomFilterConfig() {
-  if (customFilterConfigLoaded) {
+  if (customFilterConfigLoaded && cachedCustomFilterConfig !== null) {
     return cachedCustomFilterConfig;
   }
 
