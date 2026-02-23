@@ -6,7 +6,20 @@ services:
     env_file:
       - server/.env
     restart: unless-stopped
+    environment:
+      - ENABLE_MEETING_NOTES=false
     volumes:
       - ./app-data:/app/server/tmp
+      - ./app-data/library:/app/server/data/library
 
+  # Optional LiteLLM service for local LLM integration
+  # litellm:
+  #   image: ghcr.io/berriai/litellm:main-latest
+  #   ports:
+  #     - "4000:4000"
+  #   environment:
+  #     - DATABASE_URL=postgresql://... # If needed
+  #     - STORE_MODEL_IN_DB=True
+  #     # Add your model providers here (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)
+  #   command: [ "--port", "4000", "--model", "gpt-3.5-turbo" ]
 

@@ -408,6 +408,272 @@
     // Then load custom filter if it exists (it will override the default in the textarea)
     await loadCustomFilter();
   })();
+
+  /* =========================================
+     Meeting Notes Feature
+     ========================================= */
+
+  const meetingNotesTabBtn = document.getElementById('meetingNotesTabBtn');
+  const converterTabBtn = document.querySelector('[data-tab="converter"]');
+  const converterContent = document.getElementById('converter');
+  const meetingNotesContent = document.getElementById('meeting-notes');
+  const notesForm = document.getElementById('notes-form');
+  const generateNotesBtn = document.getElementById('generateNotesBtn');
+  const notesStatus = document.getElementById('notesStatus');
+  const editorContainer = document.getElementById('editor-container');
+  const markdownEditor = document.getElementById('markdown-editor');
+  const markdownPreview = document.getElementById('markdown-preview');
+  const notesActions = document.getElementById('notes-actions');
+  const downloadMarkdownBtn = document.getElementById('downloadMarkdownBtn');
+  const convertNotesBtn = document.getElementById('convertNotesBtn');
+
+  const contextFileInput = document.getElementById('context-file-input');
+  const contextLibraryInput = document.getElementById('context-library-input');
+  const templateFileInput = document.getElementById('template-file-input');
+  const templateLibraryInput = document.getElementById('template-library-input');
+  const contextLibrarySelect = document.getElementById('contextLibrarySelect');
+  const templateLibrarySelect = document.getElementById('templateLibrarySelect');
+  const agendaFileInput = document.getElementById('agenda-file-input');
+  const agendaTextInput = document.getElementById('agenda-text-input');
+  const agendaText = document.getElementById('agendaText');
+
+  // Check feature flag
+  fetch('/api/config')
+    .then(res => res.json())
+    .then(config => {
+      if (config.meetingNotesEnabled) {
+        meetingNotesTabBtn.style.display = 'block';
+      }
+    })
+    .catch(err => console.error('Error loading config:', err));
+
+  // Tab Switching Logic
+  function switchTab(tabName) {
+    if (tabName === 'meeting-notes') {
+      converterContent.style.display = 'none';
+      meetingNotesContent.style.display = 'block';
+      meetingNotesTabBtn.classList.add('active');
+      converterTabBtn.classList.remove('active');
+    } else {
+      converterContent.style.display = 'block';
+      meetingNotesContent.style.display = 'none';
+      meetingNotesTabBtn.classList.remove('active');
+      converterTabBtn.classList.add('active');
+    }
+  }
+
+  meetingNotesTabBtn.addEventListener('click', () => {
+    switchTab('meeting-notes');
+    loadLibraryFiles();
+  });
+  converterTabBtn.addEventListener('click', () => switchTab('converter'));
+
+  // Input Mode Switching
+  document.querySelectorAll('input[name="contextMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'file') {
+        contextFileInput.style.display = 'block';
+        contextLibraryInput.style.display = 'none';
+        contextLibrarySelect.value = ''; // Reset select
+      } else {
+        contextFileInput.style.display = 'none';
+        contextLibraryInput.style.display = 'block';
+        document.getElementById('context').value = ''; // Reset file input
+      }
+    });
+  });
+
+  document.querySelectorAll('input[name="agendaMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'file') {
+        agendaFileInput.style.display = 'block';
+        agendaTextInput.style.display = 'none';
+        agendaText.value = ''; // Reset text input
+      } else {
+        agendaFileInput.style.display = 'none';
+        agendaTextInput.style.display = 'block';
+        document.getElementById('agenda').value = ''; // Reset file input
+      }
+    });
+  });
+
+  document.querySelectorAll('input[name="templateMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'file') {
+        templateFileInput.style.display = 'block';
+        templateLibraryInput.style.display = 'none';
+        templateLibrarySelect.value = '';
+      } else {
+        templateFileInput.style.display = 'none';
+        templateLibraryInput.style.display = 'block';
+        document.getElementById('template').value = '';
+      }
+    });
+  });
+
+  // Library Management
+  async function loadLibraryFiles() {
+    try {
+      const res = await fetch('/api/library');
+      if (!res.ok) return;
+      const files = await res.json();
+
+      const populate = (select) => {
+        const current = select.value;
+        select.innerHTML = '<option value="">-- Select from Library --</option>';
+        files.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f;
+          opt.textContent = f;
+          select.appendChild(opt);
+        });
+        select.value = current;
+      };
+
+      populate(contextLibrarySelect);
+      populate(templateLibrarySelect);
+    } catch (err) {
+      console.error('Failed to load library:', err);
+    }
+  }
+
+  async function uploadToLibrary(fileInputId) {
+    const input = document.getElementById(fileInputId);
+    if (!input.files || input.files.length === 0) {
+      alert('Please select a file to save.');
+      return;
+    }
+    const file = input.files[0];
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('/api/library/upload', { method: 'POST', body: fd });
+      if (res.ok) {
+        alert('File saved to library!');
+        loadLibraryFiles();
+        // Switch to library mode automatically? Maybe not, user might want to continue
+      } else {
+        alert('Failed to save file.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error saving file.');
+    }
+  }
+
+  document.getElementById('saveContextToLibBtn').addEventListener('click', () => uploadToLibrary('context'));
+  document.getElementById('saveTemplateToLibBtn').addEventListener('click', () => uploadToLibrary('template'));
+
+  // Live Markdown Preview
+  markdownEditor.addEventListener('input', () => {
+    const markdownText = markdownEditor.value;
+    markdownPreview.innerHTML = marked.parse(markdownText);
+  });
+
+  // Handle Note Generation
+  notesForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(notesForm);
+
+    // Determine which inputs to use based on radio selection
+    const contextMode = document.querySelector('input[name="contextMode"]:checked').value;
+    const templateMode = document.querySelector('input[name="templateMode"]:checked').value;
+    const agendaMode = document.querySelector('input[name="agendaMode"]:checked').value;
+
+    // If using file mode, clear library selection to avoid sending confusing data
+    if (contextMode === 'file') {
+        formData.delete('contextFile');
+    } else {
+        // If using library mode, ensure the file input is cleared to avoid sending conflicting data.
+        // The radio change handler should already handle this.
+    }
+    
+    // Clear the unused agenda input so the server knows exactly which one to parse
+    if (agendaMode === 'file') {
+        formData.delete('agendaText');
+    } else {
+        formData.delete('agenda');
+    }
+
+    generateNotesBtn.disabled = true;
+    generateNotesBtn.textContent = 'Generating...';
+    notesStatus.textContent = 'Processing transcript and generating minutes (this may take a minute)...';
+    notesStatus.classList.remove('error');
+
+    try {
+      const res = await fetch('/api/generate-minutes', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Generation failed');
+      }
+
+      const data = await res.json();
+
+      // Populate Editor
+      markdownEditor.value = data.markdown;
+      markdownPreview.innerHTML = marked.parse(data.markdown);
+
+      // Show Editor & Actions
+      editorContainer.style.display = 'flex';
+      notesActions.style.display = 'flex';
+      notesStatus.textContent = 'Meeting minutes generated successfully!';
+
+    } catch (err) {
+      console.error(err);
+      notesStatus.textContent = 'Error: ' + err.message;
+      notesStatus.classList.add('error');
+    } finally {
+      generateNotesBtn.disabled = false;
+      generateNotesBtn.textContent = 'Generate Meeting Notes';
+    }
+  });
+
+  // Download Markdown
+  downloadMarkdownBtn.addEventListener('click', () => {
+    const markdown = markdownEditor.value;
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'meeting_minutes.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // Convert Generated Notes to PDF
+  convertNotesBtn.addEventListener('click', async () => {
+    const markdown = markdownEditor.value;
+    if (!markdown.trim()) {
+      alert('No content to convert!');
+      return;
+    }
+
+    // Create a File object from the current markdown content
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const file = new File([blob], 'meeting_minutes.md', { type: 'text/markdown' });
+
+    // Switch back to converter tab
+    switchTab('converter');
+
+    // Simulate file selection in the main converter
+    // We can't directly set fileInput.files due to security, so we'll use our internal state
+    addFiles([file]);
+    renderFileList();
+    enableSubmit(true);
+
+    // Optional: Auto-submit?
+    // Let's just populate it so the user can review options (watermark, etc) before clicking "Convert"
+    setStatus('Meeting minutes loaded. Click "Convert to PDF" to finish.');
+  });
+
 })();
 
 

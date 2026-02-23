@@ -1,6 +1,9 @@
 services:
   web:
     image: ghcr.io/clayauld/pandoc-md2pdf-web:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - NODE_ENV=development
     volumes:
