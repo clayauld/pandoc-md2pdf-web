@@ -381,7 +381,7 @@ app.get('/api/filter/custom', filterLimiter, async (req, res) => {
       code = await fsp.readFile(filterFilePath, 'utf8');
     } catch (err) {
       if (err.code === 'ENOENT') {
-        console.error(`Custom filter file not found: ${filterFilePath}`);
+        console.error('Custom filter file not found:', filterFilePath);
         return res.status(404).json({ error: `Custom filter file '${config.name}.lua' not found on server.` });
       }
       throw err;
@@ -534,7 +534,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         customFilterPath = savedFilterPath;
         filterMode = customFilterConfig.mode || 'additional';
       } catch (err) {
-        console.error(`Error applying custom filter '${customFilterConfig.name}':`, err);
+        console.error('Error applying custom filter:', customFilterConfig.name, err);
         // Re-throw the error to be caught by the main handler,
         // which will fail the request and notify the user.
         throw new Error(`Failed to apply custom filter '${customFilterConfig.name}'.`);
@@ -607,7 +607,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
             success: true
         });
       } catch (err) {
-          console.error(`Error converting file ${file.originalname}:`, err);
+          console.error('Error converting file:', file.originalname, err);
           results.push({
               originalName: file.originalname,
               success: false,
@@ -772,10 +772,10 @@ if (HISTORY_EXPIRATION_MS > 0) {
             });
 
             if (toDelete && toDelete.length > 0) {
-                console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
+                console.log('[cleanup] Deleting %d expired history items', toDelete.length);
                 for (const h of toDelete) {
                     fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
-                        console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
+                        console.error('[cleanup] Error deleting files for:', h.id, err);
                     });
                 }
             }
