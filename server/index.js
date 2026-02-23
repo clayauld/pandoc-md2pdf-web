@@ -500,7 +500,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         customFilterPath = savedFilterPath;
         filterMode = customFilterConfig.mode || 'additional';
       } catch (err) {
-        console.error(`Error applying custom filter '${customFilterConfig.name}':`, err);
+        console.error('Error applying custom filter:', customFilterConfig.name, err);
         // Re-throw the error to be caught by the main handler,
         // which will fail the request and notify the user.
         throw new Error(`Failed to apply custom filter '${customFilterConfig.name}'.`);
