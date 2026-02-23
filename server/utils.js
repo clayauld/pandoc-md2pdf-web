@@ -64,7 +64,7 @@ function collapseUnderscores(name) {
   // Collapse multiple underscores into a single underscore without regex
   let out = '';
   let prevUnderscore = false;
-  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  const max = name.length;
   for (let i = 0; i < max; i++) {
     const ch = name[i];
     if (ch === '_') {
