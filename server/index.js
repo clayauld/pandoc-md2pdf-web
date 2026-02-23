@@ -336,7 +336,7 @@ app.get('/api/filter/default', filterLimiter, async (req, res) => {
     res.send(content);
   } catch (err) {
     console.error('Error reading default filter:', err);
-    res.status(500).json({ error: 'Failed to read default filter', details: err.message });
+    res.status(500).json({ error: 'Failed to read default filter', details: 'An unexpected error occurred' });
   }
 });
 
@@ -356,7 +356,7 @@ app.get('/api/filter/custom', filterLimiter, async (req, res) => {
       code = await fsp.readFile(filterFilePath, 'utf8');
     } catch (err) {
       if (err.code === 'ENOENT') {
-        console.error(`Custom filter file not found: ${filterFilePath}`);
+        console.error('Custom filter file not found:', filterFilePath);
         return res.status(404).json({ error: `Custom filter file '${config.name}.lua' not found on server.` });
       }
       throw err;
@@ -370,7 +370,7 @@ app.get('/api/filter/custom', filterLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error('Error reading custom filter:', err);
-    res.status(500).json({ error: 'Failed to read custom filter', details: err.message });
+    res.status(500).json({ error: 'Failed to read custom filter', details: 'An unexpected error occurred' });
   }
 });
 
@@ -472,9 +472,7 @@ app.post('/api/filter/save', filterLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error('Error saving custom filter:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to save custom filter', details: err.message });
-    }
+    res.status(500).json({ error: 'Failed to save custom filter', details: 'An unexpected error occurred' });
   }
 });
 
@@ -512,7 +510,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
         customFilterPath = savedFilterPath;
         filterMode = customFilterConfig.mode || 'additional';
       } catch (err) {
-        console.error(`Error applying custom filter '${customFilterConfig.name}':`, err);
+        console.error('Error applying custom filter:', customFilterConfig.name, err);
         // Re-throw the error to be caught by the main handler,
         // which will fail the request and notify the user.
         throw new Error(`Failed to apply custom filter '${customFilterConfig.name}'.`);
@@ -585,10 +583,11 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
             success: true
         });
       } catch (err) {
+          console.error('Error converting file:', file.originalname, err);
           results.push({
               originalName: file.originalname,
               success: false,
-              error: err.message
+              error: 'Conversion failed'
           })
       }
     }
@@ -615,7 +614,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
     if (watermarkPath) {
       try { await fsp.unlink(watermarkPath); } catch (_) {}
     }
-    res.status(500).json({ error: 'Conversion process failed', details: String(err && err.message || err) });
+    res.status(500).json({ error: 'Conversion process failed', details: 'Internal Server Error' });
   }
 });
 
@@ -749,10 +748,10 @@ if (HISTORY_EXPIRATION_MS > 0) {
             });
 
             if (toDelete && toDelete.length > 0) {
-                console.log(`[cleanup] Deleting ${toDelete.length} expired history items`);
+                console.log('[cleanup] Deleting %d expired history items', toDelete.length);
                 for (const h of toDelete) {
                     fsp.rm(h.workDir, { recursive: true, force: true }).catch(err => {
-                        console.error(`[cleanup] Error deleting files for ${h.id}:`, err);
+                        console.error('[cleanup] Error deleting files for:', h.id, err);
                     });
                 }
             }
