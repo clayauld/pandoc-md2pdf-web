@@ -367,6 +367,32 @@ input[type="radio"] {
   font-size: 0.85em;
 }
 
+.input-mode-group {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 8px;
+}
+.input-mode-group label {
+  font-weight: normal;
+  font-size: 0.9em;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+}
+.input-mode-group input[type="radio"] {
+  margin-right: 5px;
+}
+
+.btn-small {
+  display: inline-block;
+  width: auto;
+  font-size: 12px;
+  padding: 6px 12px;
+  margin-top: 8px;
+}
+
 /* Editor */
 .editor-container {
   display: flex;

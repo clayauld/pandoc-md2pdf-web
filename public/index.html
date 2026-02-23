@@ -114,15 +114,41 @@
           </div>
 
           <div class="form-group">
-            <label for="context">Past Minutes / Context (Optional)</label>
-            <input type="file" id="context" name="context" accept=".txt,.md,.pdf" />
-            <small>Upload previous meeting minutes for context.</small>
+            <label>Past Minutes / Context (Optional)</label>
+            <div class="input-mode-group">
+              <label><input type="radio" name="contextMode" value="file" checked> Upload File</label>
+              <label><input type="radio" name="contextMode" value="library"> Use Library</label>
+            </div>
+            <div id="context-file-input">
+              <input type="file" id="context" name="context" accept=".txt,.md,.pdf" />
+              <small>Upload previous meeting minutes for context.</small>
+              <button type="button" class="button-secondary btn-small" id="saveContextToLibBtn">Save to Library</button>
+            </div>
+            <div id="context-library-input" style="display: none;">
+              <select id="contextLibrarySelect" name="contextFile">
+                <option value="">-- Select from Library --</option>
+              </select>
+              <small>Select a file stored in the library.</small>
+            </div>
           </div>
 
           <div class="form-group">
-            <label for="template">Template (Optional)</label>
-            <input type="file" id="template" name="template" accept=".txt,.md,.pdf" />
-            <small>Upload a template to guide the format.</small>
+            <label>Template (Optional)</label>
+            <div class="input-mode-group">
+              <label><input type="radio" name="templateMode" value="file" checked> Upload File</label>
+              <label><input type="radio" name="templateMode" value="library"> Use Library</label>
+            </div>
+            <div id="template-file-input">
+              <input type="file" id="template" name="template" accept=".txt,.md,.pdf" />
+              <small>Upload a template to guide the format.</small>
+              <button type="button" class="button-secondary btn-small" id="saveTemplateToLibBtn">Save to Library</button>
+            </div>
+            <div id="template-library-input" style="display: none;">
+              <select id="templateLibrarySelect" name="templateFile">
+                <option value="">-- Select from Library --</option>
+              </select>
+              <small>Select a file stored in the library.</small>
+            </div>
           </div>
 
           <button id="generateNotesBtn" type="submit">Generate Meeting Notes</button>

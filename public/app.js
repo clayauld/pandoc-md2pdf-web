@@ -427,6 +427,13 @@
   const downloadMarkdownBtn = document.getElementById('downloadMarkdownBtn');
   const convertNotesBtn = document.getElementById('convertNotesBtn');
 
+  const contextFileInput = document.getElementById('context-file-input');
+  const contextLibraryInput = document.getElementById('context-library-input');
+  const templateFileInput = document.getElementById('template-file-input');
+  const templateLibraryInput = document.getElementById('template-library-input');
+  const contextLibrarySelect = document.getElementById('contextLibrarySelect');
+  const templateLibrarySelect = document.getElementById('templateLibrarySelect');
+
   // Check feature flag
   fetch('/api/config')
     .then(res => res.json())
@@ -452,8 +459,94 @@
     }
   }
 
-  meetingNotesTabBtn.addEventListener('click', () => switchTab('meeting-notes'));
+  meetingNotesTabBtn.addEventListener('click', () => {
+    switchTab('meeting-notes');
+    loadLibraryFiles();
+  });
   converterTabBtn.addEventListener('click', () => switchTab('converter'));
+
+  // Input Mode Switching
+  document.querySelectorAll('input[name="contextMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'file') {
+        contextFileInput.style.display = 'block';
+        contextLibraryInput.style.display = 'none';
+        contextLibrarySelect.value = ''; // Reset select
+      } else {
+        contextFileInput.style.display = 'none';
+        contextLibraryInput.style.display = 'block';
+        document.getElementById('context').value = ''; // Reset file input
+      }
+    });
+  });
+
+  document.querySelectorAll('input[name="templateMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'file') {
+        templateFileInput.style.display = 'block';
+        templateLibraryInput.style.display = 'none';
+        templateLibrarySelect.value = '';
+      } else {
+        templateFileInput.style.display = 'none';
+        templateLibraryInput.style.display = 'block';
+        document.getElementById('template').value = '';
+      }
+    });
+  });
+
+  // Library Management
+  async function loadLibraryFiles() {
+    try {
+      const res = await fetch('/api/library');
+      if (!res.ok) return;
+      const files = await res.json();
+
+      const populate = (select) => {
+        const current = select.value;
+        select.innerHTML = '<option value="">-- Select from Library --</option>';
+        files.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f;
+          opt.textContent = f;
+          select.appendChild(opt);
+        });
+        select.value = current;
+      };
+
+      populate(contextLibrarySelect);
+      populate(templateLibrarySelect);
+    } catch (err) {
+      console.error('Failed to load library:', err);
+    }
+  }
+
+  async function uploadToLibrary(fileInputId) {
+    const input = document.getElementById(fileInputId);
+    if (!input.files || input.files.length === 0) {
+      alert('Please select a file to save.');
+      return;
+    }
+    const file = input.files[0];
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('/api/library/upload', { method: 'POST', body: fd });
+      if (res.ok) {
+        alert('File saved to library!');
+        loadLibraryFiles();
+        // Switch to library mode automatically? Maybe not, user might want to continue
+      } else {
+        alert('Failed to save file.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error saving file.');
+    }
+  }
+
+  document.getElementById('saveContextToLibBtn').addEventListener('click', () => uploadToLibrary('context'));
+  document.getElementById('saveTemplateToLibBtn').addEventListener('click', () => uploadToLibrary('template'));
 
   // Live Markdown Preview
   markdownEditor.addEventListener('input', () => {
@@ -466,6 +559,24 @@
     e.preventDefault();
 
     const formData = new FormData(notesForm);
+
+    // Determine which inputs to use based on radio selection
+    const contextMode = document.querySelector('input[name="contextMode"]:checked').value;
+    const templateMode = document.querySelector('input[name="templateMode"]:checked').value;
+
+    // If using file mode, clear library selection to avoid sending confusing data
+    if (contextMode === 'file') {
+        formData.delete('contextFile');
+    } else {
+        // If using library mode, clear the file input (FormData might still include it if browser behavior varies, but normally empty file input is fine)
+        // More importantly, we rely on backend logic to prefer file upload if present, so we need to ensure the backend logic is sound.
+        // Actually, my backend logic prefers `req.files.context` if present.
+        // If the user selects "Library" but leaves the file input populated (e.g. they selected a file then switched to library),
+        // we might have a conflict.
+        // To be safe, we should probably clear the file input value when switching modes (I did this in the radio change handler).
+        // So here we just need to ensure we send the right data.
+    }
+
     generateNotesBtn.disabled = true;
     generateNotesBtn.textContent = 'Generating...';
     notesStatus.textContent = 'Processing transcript and generating minutes (this may take a minute)...';

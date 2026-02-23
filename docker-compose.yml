@@ -13,6 +13,7 @@ services:
       - LLM_MODEL=gpt-3.5-turbo
     volumes:
       - ./app-data:/app/server/tmp
+      - ./app-data/library:/app/server/data/library
 
   # Optional LiteLLM service for local LLM integration
   # litellm:

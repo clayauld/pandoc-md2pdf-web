@@ -4,14 +4,20 @@ const path = require('path');
 const pdf = require('pdf-parse');
 const OpenAI = require('openai');
 const rateLimit = require('express-rate-limit');
+const mime = require('mime-types');
 
 const router = express.Router();
+const fs = require('fs/promises');
 
 // Configuration
 const ENABLE_MEETING_NOTES = process.env.ENABLE_MEETING_NOTES === 'true';
 const LLM_API_BASE = process.env.LLM_API_BASE;
 const LLM_API_KEY = process.env.LLM_API_KEY;
 const LLM_MODEL = process.env.LLM_MODEL || 'gpt-3.5-turbo'; // Default model if not specified
+const LIBRARY_DIR = path.join(__dirname, 'data', 'library');
+
+// Ensure library directory exists
+fs.mkdir(LIBRARY_DIR, { recursive: true }).catch(err => console.error('Failed to create library dir:', err));
 
 // Rate limiter for meeting notes generation
 const generateLimiter = rateLimit({
@@ -70,6 +76,64 @@ const openai = new OpenAI({
   baseURL: LLM_API_BASE,
 });
 
+// --- Library Endpoints ---
+
+// List files in the library
+router.get('/library', async (req, res) => {
+    try {
+        const files = await fs.readdir(LIBRARY_DIR);
+        res.json(files);
+    } catch (err) {
+        console.error('Error reading library:', err);
+        res.status(500).json({ error: 'Failed to list library files' });
+    }
+});
+
+// Upload a file to the library
+router.post('/library/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        const safeName = path.basename(req.file.originalname);
+        await fs.writeFile(path.join(LIBRARY_DIR, safeName), req.file.buffer);
+        res.json({ success: true, filename: safeName });
+    } catch (err) {
+        console.error('Error saving library file:', err);
+        res.status(500).json({ error: 'Failed to save file to library' });
+    }
+});
+
+// Delete a file from the library
+router.delete('/library/:filename', async (req, res) => {
+    try {
+        const filename = path.basename(req.params.filename);
+        await fs.unlink(path.join(LIBRARY_DIR, filename));
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting library file:', err);
+        if (err.code === 'ENOENT') {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        res.status(500).json({ error: 'Failed to delete file' });
+    }
+});
+
+
+// Helper to read library file
+async function readLibraryFile(filename) {
+    if (!filename) return '';
+    try {
+        const filePath = path.join(LIBRARY_DIR, path.basename(filename));
+        const buffer = await fs.readFile(filePath);
+        const mimeType = mime.lookup(filePath) || 'application/octet-stream';
+        return await extractText(buffer, mimeType, filename);
+    } catch (err) {
+        console.warn(`Failed to read library file ${filename}:`, err.message);
+        return '';
+    }
+}
+
 // POST /api/generate-minutes
 router.post('/generate-minutes', generateLimiter, upload.fields([
   { name: 'transcript', maxCount: 1 },
@@ -87,14 +151,16 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
   }
 
   try {
-    const files = req.files;
+    const files = req.files || {};
+    const body = req.body || {};
 
     // 1. Validate inputs
-    if (!files || !files.transcript) {
+    if ((!files.transcript || !files.transcript[0]) && !body.transcriptText) {
+      // Transcript is strictly required as a file upload for now, or text if we wanted to support pasted text
       return res.status(400).json({ error: 'Transcript file is required.' });
     }
 
-    // 2. Extract text from files
+    // 2. Extract text from files or library references
     const transcriptText = await extractText(
       files.transcript[0].buffer,
       files.transcript[0].mimetype,
@@ -102,7 +168,7 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
     );
 
     let agendaText = '';
-    if (files.agenda) {
+    if (files.agenda && files.agenda[0]) {
       agendaText = await extractText(
         files.agenda[0].buffer,
         files.agenda[0].mimetype,
@@ -111,21 +177,25 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
     }
 
     let contextText = '';
-    if (files.context) {
+    if (files.context && files.context[0]) {
       contextText = await extractText(
         files.context[0].buffer,
         files.context[0].mimetype,
         files.context[0].originalname
       );
+    } else if (body.contextFile) {
+        contextText = await readLibraryFile(body.contextFile);
     }
 
     let templateText = '';
-    if (files.template) {
+    if (files.template && files.template[0]) {
       templateText = await extractText(
         files.template[0].buffer,
         files.template[0].mimetype,
         files.template[0].originalname
       );
+    } else if (body.templateFile) {
+        templateText = await readLibraryFile(body.templateFile);
     }
 
     // 3. Construct the prompt
