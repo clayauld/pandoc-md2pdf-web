@@ -155,7 +155,7 @@ router.post('/generate-minutes', generateLimiter, upload.fields([
   }
 
   // Ensure at least one config is present if we are going to try to call the API
-  if (!process.env.LLM_API_KEY && !process.env.LLM_API_BASE) {
+  if (!process.env.LLM_API_BASE || (!process.env.LLM_API_KEY && process.env.LLM_API_BASE.includes('openai.com'))) {
      return res.status(500).json({ error: 'LLM configuration missing (API Key or Base URL).' });
   }
 
