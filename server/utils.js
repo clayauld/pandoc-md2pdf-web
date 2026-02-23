@@ -17,15 +17,16 @@ function parseTtl(ttl) {
 }
 
 function sanitizeBaseName(name) {
-  // Ensure name is a string, truncate to a reasonable length (e.g., 255)
+  // Ensure name is a string, truncate to a reasonable length
   name = typeof name === 'string' ? name : String(name);
   if (name.length > MAX_FILE_NAME_LENGTH) {
     name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
+
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
-  const max = name.length;
-  for (let i = 0; i < max; i++) {
+  // Use a simple for loop with the truncated name's length
+  for (let i = 0; i < name.length; i++) {
     const ch = name[i];
     const isAllowed =
       (ch >= 'a' && ch <= 'z') ||
@@ -38,10 +39,12 @@ function sanitizeBaseName(name) {
 }
 
 function stripTrailingDelimiters(name) {
+  // Ensure name is a string, truncate to a reasonable length
   name = typeof name === 'string' ? name : String(name);
   if (name.length > MAX_FILE_NAME_LENGTH) {
     name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
+
   // Remove trailing underscores, dots, or hyphens from a base filename
   let end = name.length;
   while (end > 0) {
@@ -56,16 +59,16 @@ function stripTrailingDelimiters(name) {
 }
 
 function collapseUnderscores(name) {
-  // Ensure string input and cap effective length
+  // Ensure string input and truncate to a reasonable length
   name = typeof name === 'string' ? name : String(name);
-  if (!Number.isSafeInteger(name.length) || name.length > MAX_FILE_NAME_LENGTH) {
+  if (name.length > MAX_FILE_NAME_LENGTH) {
     name = name.slice(0, MAX_FILE_NAME_LENGTH);
   }
+
   // Collapse multiple underscores into a single underscore without regex
   let out = '';
   let prevUnderscore = false;
-  const max = name.length;
-  for (let i = 0; i < max; i++) {
+  for (let i = 0; i < name.length; i++) {
     const ch = name[i];
     if (ch === '_') {
       if (!prevUnderscore) out += '_';

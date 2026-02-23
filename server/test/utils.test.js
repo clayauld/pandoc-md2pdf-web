@@ -1,6 +1,36 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
-const { stripTrailingDelimiters } = require('../utils');
+const {
+  stripTrailingDelimiters,
+  sanitizeBaseName,
+  collapseUnderscores
+} = require('../utils');
+
+describe('sanitizeBaseName', () => {
+  test('should sanitize basic name', () => {
+    assert.strictEqual(sanitizeBaseName('hello world'), 'hello_world');
+  });
+
+  test('should allow valid characters', () => {
+    assert.strictEqual(sanitizeBaseName('abc.ABC_123-'), 'abc.ABC_123-');
+  });
+
+  test('should truncate long name', () => {
+    const long = 'a'.repeat(300);
+    assert.strictEqual(sanitizeBaseName(long).length, 255);
+  });
+});
+
+describe('collapseUnderscores', () => {
+  test('should collapse multiple underscores', () => {
+    assert.strictEqual(collapseUnderscores('a__b___c'), 'a_b_c');
+  });
+
+  test('should truncate long name', () => {
+    const long = 'a'.repeat(300);
+    assert.strictEqual(collapseUnderscores(long).length, 255);
+  });
+});
 
 describe('stripTrailingDelimiters', () => {
   test('should return the same string if no trailing delimiters', () => {
