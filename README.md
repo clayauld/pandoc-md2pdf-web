@@ -32,12 +32,13 @@ This tool provides a user-friendly web interface for converting Markdown (`.md`)
 
 - Generate PDF reports from Markdown documentation
 - Create professional-looking documents without LaTeX knowledge
+- Automate meeting minutes generation from transcripts, agendas, and templates via LLM
 - Add "DRAFT" or custom watermarks to documents
 - Automate document generation via REST API
 - Convert technical documentation to PDF format
 
 **How It Works:**
-Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle the conversion, providing high-quality typesetting and font support.
+Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle the conversion, providing high-quality typesetting and font support. The Meeting Notes generator utilizes OpenAI-compatible LLMs to intelligently digest meeting recordings and contextual documents.
 
 ---
 
@@ -45,6 +46,7 @@ Under the hood, this uses [Pandoc](https://pandoc.org/) with XeLaTeX to handle t
 
 - 🖱️ **Simple Drag-and-Drop UI** - No command line required
 - 📝 **Markdown to PDF Conversion** - High-quality output using Pandoc/XeLaTeX
+- 🎙️ **Intelligent Meeting Notes** - Generate structured meeting minutes automatically from transcripts, agendas, and attendance lists using LLMs!
 - ↔️ **Portrait/Landscape** - Choose between portrait and landscape orientation
 - 📐 **Multiple Paper Sizes** - Select from standard paper sizes (Letter, A4, etc.)
 - 🏷️ **Optional Watermarks** - Add "DRAFT" or custom text watermarks
@@ -260,6 +262,55 @@ To download the PDF, use: `GET /download/:id/:filename`
 
 `500` (`application/json`)
 : Conversion failed: `{ "error": "message", "details": "..." }`
+
+### POST `/api/generate-minutes` - Generate Meeting Notes
+
+**Endpoint**: `http://localhost:8080/api/generate-minutes`
+
+**Request Format**: `multipart/form-data`
+
+**Parameters**:
+
+`transcript`
+: **File** (✅ Yes) - A text or markdown file containing the meeting transcript. _Ensure the filename includes the timestamp of the recording, as it is used to infer the date of the meeting._
+
+`agenda`
+: **File** (No) - The agenda of the meeting.
+`agendaText`
+: **String** (No) - The agenda of the meeting provided as text/string. _Used if the `agenda` file is not provided._
+
+`context`
+: **File** (No) - Previous meeting minutes uploaded as a file to provide context.
+`contextFile`
+: **String** (No) - Previous meeting minutes chosen from the server's Library.
+
+`template`
+: **File** (No) - A markdown template prescribing the format of the output.
+`templateFile`
+: **String** (No) - A template chosen from the server's Library.
+
+`attendanceText`
+: **String** (No) - A text string containing the list of attendees.
+
+**Response**:
+
+`200` (`application/json`)
+: Successfully requested LLM generation. Returns:
+
+```json
+{
+  "markdown": "# Meeting Notes\n\n## Attendees\n..."
+}
+```
+
+`400` (`application/json`)
+: Missing or invalid file: `{ "error": "Transcript file is required." }`
+
+`403` (`application/json`)
+: Feature disabled: `{ "error": "Meeting notes generation is disabled." }`
+
+`500` (`application/json`)
+: LLM Configuration missing or failed generation: `{ "error": "Failed to generate meeting minutes.", "details": "..." }`
 
 ### Examples
 
