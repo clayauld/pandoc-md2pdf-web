@@ -304,7 +304,7 @@ async function runPandoc({
     args.push('--lua-filter', customFilterPath);
   } else {
     // For all other cases, the default filter is included.
-    const defaultFilterPath = getDefaultFilterPath();
+    const defaultFilterPath = await getDefaultFilterPath();
     args.push('--lua-filter', defaultFilterPath);
 
     // If in 'additional' mode, add the custom filter after the default one.
