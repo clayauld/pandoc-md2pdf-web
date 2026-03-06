@@ -27,7 +27,8 @@ function sanitizeBaseName(name) {
   }
   // Replace any disallowed character with underscore without regex backtracking
   let out = '';
-  for (let i = 0; i < name.length; i++) {
+  const max = Math.min(name.length, MAX_FILE_NAME_LENGTH);
+  for (let i = 0; i < max; i++) {
     const ch = name[i];
     const isAllowed =
       (ch >= 'a' && ch <= 'z') ||
@@ -41,6 +42,9 @@ function sanitizeBaseName(name) {
 
 function stripTrailingDelimiters(name) {
   name = typeof name === 'string' ? name : String(name);
+  if (name.length > MAX_FILE_NAME_LENGTH) {
+    name = name.slice(0, MAX_FILE_NAME_LENGTH);
+  }
   // Remove trailing underscores, dots, or hyphens from a base filename
   let end = name.length;
   while (end > 0) {
