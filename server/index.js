@@ -596,8 +596,7 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
       watermarkPath = tempWatermarkPath;
     }
 
-    const results = [];
-    for (const file of req.files) {
+    const results = await Promise.all(req.files.map(async (file) => {
       try {
         const original = sanitizeBaseName(file.originalname || 'document.md');
         const mdName = original.toLowerCase().endsWith('.md') ? original : `${original}.md`;
@@ -613,19 +612,19 @@ app.post('/convert', convertLimiter, upload.array('files'), async (req, res) => 
           orientation,
           paperSize,
         });
-        results.push({
+        return {
             name: path.basename(pdfPath),
             originalName: file.originalname,
             success: true
-        });
+        };
       } catch (err) {
-          results.push({
+          return {
               originalName: file.originalname,
               success: false,
               error: err.message
-          })
+          };
       }
-    }
+    }));
 
     await saveHistory(h => h.push({
         id,
