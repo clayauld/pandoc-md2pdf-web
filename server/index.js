@@ -752,12 +752,16 @@ app.get('/download-zip/:id', downloadLimiter, (req, res) => {
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
-app.listen(PORT, () => {
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  });
+}
+
+module.exports = app;
 
 // Cleanup interval
-if (HISTORY_EXPIRATION_MS > 0) {
+if (HISTORY_EXPIRATION_MS > 0 && process.env.NODE_ENV !== 'test') {
     setInterval(async () => {
         try {
             const toDelete = await saveHistory(h => {

@@ -7,7 +7,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "archiver": "^7.0.1",
@@ -24,5 +25,14 @@
     "minimatch": "^10.2.1",
     "glob": "^13.0.0",
     "formdata-node": "^6.0.3"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "supertest": "^7.2.2"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^nanoid$": "<rootDir>/__mocks__/nanoid.js"
+    }
   }
 }
