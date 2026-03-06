@@ -4,7 +4,7 @@ function parseTtl(ttl) {
   if (!ttl) return 3600 * 1000; // Default: 1 hour
   const unit = ttl.slice(-1).toLowerCase();
   const value = parseInt(ttl.slice(0, -1), 10);
-  if (isNaN(value) || value <= 0) return 3600 * 1000;
+  if (isNaN(value)) return 3600 * 1000;
 
   switch (unit) {
     case 'm': return value * 60 * 1000;
