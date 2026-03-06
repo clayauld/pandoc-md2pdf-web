@@ -5,7 +5,7 @@ npm start > /dev/null 2>&1 &
 SERVER_PID=$!
 
 echo "Waiting for server to start..."
-until curl -s -f http://localhost:8080/healthz > /dev/null; do sleep 1; done
+sleep 2
 
 # Create some test files with more content to make pandoc work harder
 mkdir -p test_files

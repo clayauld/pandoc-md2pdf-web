@@ -278,7 +278,7 @@ async function saveCustomFilter(saveFn) {
   return newSavePromise;
 }
 
-function runPandoc({
+async function runPandoc({
   cwd,
   mdFileName,
   watermarkPath,
@@ -287,65 +287,65 @@ function runPandoc({
   orientation,
   paperSize,
 }) {
-  return new Promise((resolve, reject) => {
-    const inputPath = path.join(cwd, mdFileName);
-    let baseRaw = mdFileName;
-    if (typeof mdFileName === 'string' && mdFileName.toLowerCase().endsWith('.md')) {
-      baseRaw = mdFileName.slice(0, -3);
-    }
-    const base = collapseUnderscores(stripTrailingDelimiters(baseRaw)) || baseRaw;
-    const outDir = path.join(cwd, 'pdf_output');
-    const outFile = path.join(outDir, `${base}.pdf`);
+  const inputPath = path.join(cwd, mdFileName);
+  let baseRaw = mdFileName;
+  if (typeof mdFileName === 'string' && mdFileName.toLowerCase().endsWith('.md')) {
+    baseRaw = mdFileName.slice(0, -3);
+  }
+  const base = collapseUnderscores(stripTrailingDelimiters(baseRaw)) || baseRaw;
+  const outDir = path.join(cwd, 'pdf_output');
+  const outFile = path.join(outDir, `${base}.pdf`);
 
-    const args = [inputPath];
+  const args = [inputPath];
 
-    // Handle filter logic based on custom filter mode
-    if (customFilterPath && filterMode === 'override') {
-      // Override mode: use only custom filter, skip default
+  // Handle filter logic based on custom filter mode
+  if (customFilterPath && filterMode === 'override') {
+    // Override mode: use only custom filter, skip default
+    args.push('--lua-filter', customFilterPath);
+  } else {
+    // For all other cases, the default filter is included.
+    const defaultFilterPath = getDefaultFilterPath();
+    args.push('--lua-filter', defaultFilterPath);
+
+    // If in 'additional' mode, add the custom filter after the default one.
+    if (customFilterPath && filterMode === 'additional') {
       args.push('--lua-filter', customFilterPath);
-    } else {
-      // For all other cases, the default filter is included.
-      const defaultFilterPath = getDefaultFilterPath();
-      args.push('--lua-filter', defaultFilterPath);
-
-      // If in 'additional' mode, add the custom filter after the default one.
-      if (customFilterPath && filterMode === 'additional') {
-        args.push('--lua-filter', customFilterPath);
-      }
     }
+  }
 
-    args.push(
-      '-o', outFile,
-      '--pdf-engine=xelatex',
-      '-V', 'geometry:margin=1in',
-      '-V', `papersize:${paperSize || 'letter'}`,
-      '-V', 'mainfont=Libertinus Serif',
-      '-V', 'monofont=Libertinus Mono',
-      '--variable=documentclass:article',
-      '--variable=parskip:12pt',
-    );
+  args.push(
+    '-o', outFile,
+    '--pdf-engine=xelatex',
+    '-V', 'geometry:margin=1in',
+    '-V', `papersize:${paperSize || 'letter'}`,
+    '-V', 'mainfont=Libertinus Serif',
+    '-V', 'monofont=Libertinus Mono',
+    '--variable=documentclass:article',
+    '--variable=parskip:12pt',
+  );
 
-    if (orientation === 'landscape') {
-      args.push('-V', 'geometry:landscape');
-    }
+  if (orientation === 'landscape') {
+    args.push('-V', 'geometry:landscape');
+  }
 
-    if (watermarkPath) {
-      args.push('-H', watermarkPath);
-    }
+  if (watermarkPath) {
+    args.push('-H', watermarkPath);
+  }
 
-    fs.mkdirSync(outDir, { recursive: true });
+  await fsp.mkdir(outDir, { recursive: true });
 
-    // Ensure xelatex can find our vendored draftwatermark.sty
-    const execOpts = {
-      cwd,
-      env: {
-        ...process.env,
-        // Prepend /app/tex to TEXINPUTS. The double-colon at the end ensures
-        // that the default search paths are still used, which includes the cwd.
-        TEXINPUTS: `/app/tex:${process.env.TEXINPUTS || ''}:`,
-      },
-    };
+  // Ensure xelatex can find our vendored draftwatermark.sty
+  const execOpts = {
+    cwd,
+    env: {
+      ...process.env,
+      // Prepend /app/tex to TEXINPUTS. The double-colon at the end ensures
+      // that the default search paths are still used, which includes the cwd.
+      TEXINPUTS: `/app/tex:${process.env.TEXINPUTS || ''}:`,
+    },
+  };
 
+  return new Promise((resolve, reject) => {
     const child = execFile('pandoc', args, execOpts, (err) => {
       if (err) return reject(err);
       resolve(outFile);
