@@ -1,18 +1,24 @@
 const MAX_FILE_NAME_LENGTH = 255;
 
+const ONE_MINUTE_MS = 60 * 1000;
+const ONE_HOUR_MS = 3600 * 1000;
+const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+const ONE_WEEK_MS = 7 * ONE_DAY_MS;
+const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
+
 function parseTtl(ttl) {
-  if (!ttl) return 3600 * 1000; // Default: 1 hour
+  if (!ttl) return ONE_HOUR_MS; // Default: 1 hour
   const unit = ttl.slice(-1).toLowerCase();
   const value = parseInt(ttl.slice(0, -1), 10);
-  if (isNaN(value)) return 3600 * 1000;
+  if (isNaN(value)) return ONE_HOUR_MS;
 
   switch (unit) {
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 3600 * 1000;
-    case 'd': return value * 24 * 3600 * 1000;
-    case 'w': return value * 7 * 24 * 3600 * 1000;
-    case 'M': return value * 30 * 24 * 3600 * 1000; // Approx. 30 days
-    default: return 3600 * 1000;
+    case 'm': return value * ONE_MINUTE_MS;
+    case 'h': return value * ONE_HOUR_MS;
+    case 'd': return value * ONE_DAY_MS;
+    case 'w': return value * ONE_WEEK_MS;
+    case 'M': return value * THIRTY_DAYS_MS; // Approx. 30 days
+    default: return ONE_HOUR_MS;
   }
 }
 
