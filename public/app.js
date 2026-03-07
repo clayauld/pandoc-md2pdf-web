@@ -579,7 +579,6 @@
 
     // Determine which inputs to use based on radio selection
     const contextMode = document.querySelector('input[name="contextMode"]:checked').value;
-    const templateMode = document.querySelector('input[name="templateMode"]:checked').value;
     const agendaMode = document.querySelector('input[name="agendaMode"]:checked').value;
 
     // If using file mode, clear library selection to avoid sending confusing data
