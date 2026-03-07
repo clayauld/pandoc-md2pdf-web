@@ -388,7 +388,7 @@
       return;
     }
 
-    const result = await saveFilterToServer(name, code, mode, enabled, {
+    await saveFilterToServer(name, code, mode, enabled, {
       loadingMessage: enabled ? 'Enabling filter...' : 'Disabling filter...',
       successMessage: enabled ? 'Custom filter enabled' : 'Custom filter disabled',
       onError: () => {
